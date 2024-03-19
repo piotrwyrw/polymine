@@ -1,0 +1,3 @@
+/Users/piotrwyrw/Seidl/cmake-build-debug/CMakeFiles/interpreter.dir
+/Users/piotrwyrw/Seidl/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/piotrwyrw/Seidl/cmake-build-debug/CMakeFiles/rebuild_cache.dir

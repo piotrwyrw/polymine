@@ -1,0 +1,13 @@
+# ninja log v5
+0	26	1710843651442339627	CMakeFiles/interpreter.dir/src/main.c.o	f5669ab2e2501a5b
+0	26	1710843651442553295	CMakeFiles/interpreter.dir/src/parser.c.o	73c37a2fdb7c7360
+0	26	1710843651443008714	CMakeFiles/interpreter.dir/src/ast.c.o	53e6fc5a79513836
+0	26	1710843651442785796	CMakeFiles/interpreter.dir/src/io.c.o	92d3afdbd9ea2ba2
+0	30	1710843651447227654	CMakeFiles/interpreter.dir/src/lexer.c.o	9b4f6ec7075b8660
+31	56	1710843651473176091	interpreter	6f08ac56310adbd6
+0	27	1710843748679410324	CMakeFiles/interpreter.dir/src/parser.c.o	73c37a2fdb7c7360
+27	54	1710843748707054687	interpreter	6f08ac56310adbd6
+1	29	1710843924022663403	CMakeFiles/interpreter.dir/src/parser.c.o	73c37a2fdb7c7360
+30	61	1710843924054095703	interpreter	6f08ac56310adbd6
+0	27	1710843994568781561	CMakeFiles/interpreter.dir/src/parser.c.o	73c37a2fdb7c7360
+27	54	1710843994596001546	interpreter	6f08ac56310adbd6
