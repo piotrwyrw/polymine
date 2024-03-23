@@ -6,7 +6,7 @@
 
 int main(void) {
 	struct input_handle handle = empty_input_handle;
-	if (!input_read("input", &handle)) {
+	if (!input_read("input.int", &handle)) {
 		printf("Could not load input file.\n");
 		return 0;
 	}
@@ -17,10 +17,9 @@ int main(void) {
 	struct parser p;
 	parser_init(&p, &lex);
 
-        struct astnode *str = parse_string_literal(&p);
-        if (str) {
-                printf("%s\n", str->body.string_literal.value);
-                astnode_free(str);
+        struct astdtype *type = parse_type(&p);
+        if (type) {
+                astdtype_free(type);
         }
 
         parser_Free(&p);

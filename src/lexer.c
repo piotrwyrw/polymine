@@ -107,9 +107,6 @@ inline _Bool lexer_empty(struct lexer *lx)
 
 _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
 {
-        if (lx->position + 1 >= lx->input->length)
-                goto submit_token;
-
         enum lxmode mode = LMODE_NOTHING;
         enum lxtype type = LX_UNDEFINED;
         size_t line = lx->line;
@@ -183,11 +180,8 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
                         continue;
                 }
 
-                nevermind:
-
                 buffer[buffer_idx++] = c;
 
-                check_last:
                 if (lx->position + 1 >= lx->input->length)
                         goto submit_token;
 
@@ -212,10 +206,6 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
         } // End of for loop
 
         return true;
-
-        unknown_mode:
-        free(buffer);
-        return false;
 
         submit_token:
         lxtok_init(tok, type, buffer, line);

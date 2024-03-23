@@ -18,6 +18,8 @@ void parser_Free(struct parser *);
 
 void parser_advance(struct parser *);
 
+struct astdtype *parse_type(struct parser *);
+
 struct astnode *parse_string_literal(struct parser *);
 
 #endif

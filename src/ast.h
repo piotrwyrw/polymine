@@ -6,7 +6,7 @@
 
 #define NODE_ARRAY_INCREMENT 20
 
-enum nodetype {
+enum nodetype : uint8_t {
 	NODE_UNDEFINED = 0,
 
 	NODE_BLOCK,
@@ -17,6 +17,8 @@ enum nodetype {
 };
 
 const char *nodetype_string(enum nodetype);
+
+struct astdtype;
 
 struct astnode {
 	enum nodetype type;
@@ -44,8 +46,59 @@ struct astnode {
 			size_t length;
 			char *value;
 		} string_literal;
+
+                struct {
+                        struct astdtype *adt;
+                } data_type;
 	} body;
 };
+
+enum builtin_type : uint8_t {
+        BUILTIN_UNDEFINED = 0,
+        BUILTIN_CHAR,
+        BUILTIN_NUMBER,
+        BUILTIN_GENERIC_BYTE
+};
+
+enum builtin_type builtin_from_string(char *);
+
+enum astdtype_type : uint8_t {
+        ASTDTYPE_VOID = 0,
+        ASTDTYPE_POINTER,
+        ASTDTYPE_BUILTIN,
+        ASTDTYPE_CUSTOM,
+};
+
+/**
+ * Used to represent (complex) types
+ */
+struct astdtype {
+        enum astdtype_type type;
+
+        union {
+                struct {
+                        struct astdtype *to;
+                } pointer;
+
+                struct {
+                        enum builtin_type datatype;
+                } builtin;
+
+                struct {
+                        char *name;
+                } custom;
+        };
+};
+
+void astdtype_free(struct astdtype *);
+
+struct astdtype *astdtype_generic(enum astdtype_type);
+
+struct astdtype *astdtype_pointer(struct astdtype *);
+
+struct astdtype *astdtype_builtin(enum builtin_type);
+
+struct astdtype *astdtype_custom(char *);
 
 /* Recursively free a node */
 void astnode_free(struct astnode *);
