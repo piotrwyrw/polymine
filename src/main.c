@@ -1,6 +1,7 @@
 #include "io.h"
 #include "lexer.h"
 #include "parser.h"
+#include "syntax.h"
 #include "util.h"
 
 #include <stdio.h>
@@ -18,7 +19,7 @@ int main(void) {
 	struct parser p;
 	parser_init(&p, &lex);
 
-        struct astnode *node = parser_parse(&p);
+        struct astnode *node = parse(&p);
         if (node) {
                 ast_print(node, 0);
                 astnode_free(node);
