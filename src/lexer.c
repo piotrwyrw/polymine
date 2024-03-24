@@ -86,9 +86,20 @@ _Bool lexer_skip_spaces(struct lexer *lx)
         if (lx->position >= lx->input->length)
                 return false;
 
+        _Bool comment = false;
+
         for (; lx->position < lx->input->length; lx->position++) {
                 char c = lx->input->buffer[lx->position];
-                if (isspace(c)) {
+
+                if (lx->position + 1 < lx->input->length && c == '/' && lx->input->buffer[lx->position + 1] == '/') {
+                        comment = true;
+                }
+
+                if (c == '\n') {
+                        comment = false;
+                }
+
+                if (isspace(c) || comment) {
                         if (c == '\n')
                                 lx->line++;
                         continue;
