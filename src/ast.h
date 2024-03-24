@@ -1,56 +1,73 @@
 #ifndef AST_H
 #define AST_H
 
+#include "lexer.h"
+
 #include <stdlib.h>
 #include <stdbool.h>
 
 #define NODE_ARRAY_INCREMENT 20
 
 enum nodetype : uint8_t {
-	NODE_UNDEFINED = 0,
+        NODE_UNDEFINED = 0,
 
-	NODE_BLOCK,
-	NODE_PROGRAM,
-	NODE_INTEGER_LITERAL,
-	NODE_DECIMAL_LITERAL,
-	NODE_STRING_LITERAL
+        NODE_NOTHING, // Warning: This is NOT the same as UNDEFINED !!
+        NODE_BLOCK,
+        NODE_PROGRAM,
+        NODE_NUMBER_LITERAL,
+        NODE_STRING_LITERAL,
+        NODE_BINARY_OP
 };
 
 const char *nodetype_string(enum nodetype);
 
+enum binaryop : uint8_t {
+        BOP_UNKNOWN = 0,
+
+        BOP_ADD,
+        BOP_SUB,
+        BOP_MUL,
+        BOP_DIV
+};
+
+enum binaryop bop_from_lxtype(enum lxtype);
+const char *binaryop_string(enum binaryop);
+
 struct astdtype;
 
 struct astnode {
-	enum nodetype type;
-	size_t line;
-	union {
-		struct {
-			struct astnode *block;
-		} program;
+        enum nodetype type;
+        size_t line;
+        union {
+                struct {
+                        struct astnode *block;
+                } program;
 
-		struct {
-			struct astnode **nodes;
-			size_t max_count;
-			size_t count;
-		} block;
+                struct {
+                        struct astnode **nodes;
+                        size_t max_count;
+                        size_t count;
+                } block;
 
-		struct {
-			int value;
-		} integer_literal;
+                struct {
+                        double value;
+                } number_literal;
 
-		struct {
-			double value;
-		} decimal_literal;
-
-		struct {
-			size_t length;
-			char *value;
-		} string_literal;
+                struct {
+                        size_t length;
+                        char *value;
+                } string_literal;
 
                 struct {
                         struct astdtype *adt;
                 } data_type;
-	} body;
+
+                struct {
+                        struct astnode *left;
+                        struct astnode *right;
+                        enum binaryop op;
+                } binary;
+        };
 };
 
 enum builtin_type : uint8_t {
@@ -103,6 +120,8 @@ struct astdtype *astdtype_custom(char *);
 /* Recursively free a node */
 void astnode_free(struct astnode *);
 
+struct astnode *astnode_nothing(size_t);
+
 struct astnode *astnode_empty_program();
 
 struct astnode *astnode_empty_block(size_t);
@@ -113,10 +132,10 @@ void astnode_free_block(struct astnode *);
 
 struct astnode *astnode_generic(enum nodetype, size_t);
 
-struct astnode *astnode_integer_literal(size_t, int);
-
-struct astnode *astnode_decimal_literal(size_t, double);
+struct astnode *astnode_number_literal(size_t, double);
 
 struct astnode *astnode_string_literal(size_t, char *);
+
+struct astnode *astnode_binary(size_t, struct astnode *, struct astnode *, enum binaryop);
 
 #endif

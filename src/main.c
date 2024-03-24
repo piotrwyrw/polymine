@@ -1,6 +1,7 @@
 #include "io.h"
 #include "lexer.h"
 #include "parser.h"
+#include "util.h"
 
 #include <stdio.h>
 
@@ -17,12 +18,13 @@ int main(void) {
 	struct parser p;
 	parser_init(&p, &lex);
 
-        struct astdtype *type = parse_type(&p);
-        if (type) {
-                astdtype_free(type);
+        struct astnode *node = parser_parse(&p);
+        if (node) {
+                ast_print(node, 0);
+                astnode_free(node);
         }
 
-        parser_Free(&p);
+        parser_free(&p);
 
 	input_free(&handle);
 

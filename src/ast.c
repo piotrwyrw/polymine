@@ -69,13 +69,41 @@ const char *nodetype_string(enum nodetype type)
 #define AUTO(type) case type: return #type;
                 AUTO(NODE_BLOCK)
                 AUTO(NODE_PROGRAM)
-                AUTO(NODE_INTEGER_LITERAL)
-                AUTO(NODE_DECIMAL_LITERAL)
+                AUTO(NODE_NUMBER_LITERAL)
                 AUTO(NODE_STRING_LITERAL)
-#undef AUTO()
+#undef AUTO
                 default:
                         return "[???]";
         }
+}
+
+enum binaryop bop_from_lxtype(enum lxtype type)
+{
+        switch (type) {
+                case LX_PLUS:
+                        return BOP_ADD;
+                case LX_MINUS:
+                        return BOP_SUB;
+                case LX_SLASH:
+                        return BOP_DIV;
+                case LX_ASTERISK:
+                        return BOP_MUL;
+                default:
+                        return BOP_UNKNOWN;
+        }
+}
+
+const char *binaryop_string(enum binaryop op)
+{
+#define AUTO(type) case type: return #type;
+        switch (op) {
+                AUTO(BOP_UNKNOWN);
+                AUTO(BOP_ADD)
+                AUTO(BOP_SUB)
+                AUTO(BOP_MUL)
+                AUTO(BOP_DIV)
+        }
+#undef AUTO
 }
 
 void astnode_free(struct astnode *node)
@@ -85,13 +113,17 @@ void astnode_free(struct astnode *node)
 
         switch (node->type) {
                 case NODE_PROGRAM:
-                        astnode_free(node);
+                        astnode_free(node->program.block);
                         break;
                 case NODE_BLOCK:
                         astnode_free_block(node);
                         return;
                 case NODE_STRING_LITERAL:
-                        free(node->body.string_literal.value);
+                        free(node->string_literal.value);
+                        break;
+                case NODE_BINARY_OP:
+                        astnode_free(node->binary.left);
+                        astnode_free(node->binary.right);
                         break;
                 default:
                         break;
@@ -108,10 +140,15 @@ struct astnode *astnode_generic(enum nodetype type, size_t line)
         return node;
 }
 
+struct astnode *astnode_nothing(size_t line)
+{
+        return astnode_generic(NODE_NOTHING, line);
+}
+
 struct astnode *astnode_empty_program()
 {
         struct astnode *node = astnode_generic(NODE_PROGRAM, 0);
-        node->body.program.block = astnode_empty_block(0);
+        node->program.block = NULL;
         return node;
 }
 
@@ -119,55 +156,58 @@ struct astnode *astnode_empty_block(size_t line)
 {
         struct astnode *node = astnode_generic(NODE_BLOCK, line);
 
-        node->body.block.max_count = NODE_ARRAY_INCREMENT;
-        node->body.block.count = 0;
-        node->body.block.nodes = calloc(node->body.block.max_count, sizeof(struct astnode));
+        node->block.max_count = NODE_ARRAY_INCREMENT;
+        node->block.count = 0;
+        node->block.nodes = calloc(node->block.max_count, sizeof(struct astnode *));
 
         return node;
 }
 
-_Bool astnode_push_block(struct astnode *program, struct astnode *node)
+_Bool astnode_push_block(struct astnode *block, struct astnode *node)
 {
         _Bool resize = false;
 
         // Resize the array if needed
-        if (program->body.block.count >= program->body.block.max_count) {
-                program->body.block.nodes = realloc(program->body.block.nodes, sizeof(struct astnode *) *
-                                                                               (program->body.block.max_count += NODE_ARRAY_INCREMENT));
+        if (block->block.count >= block->block.max_count) {
+                block->block.nodes = realloc(block->block.nodes, sizeof(struct astnode *) *
+                                                                 (block->block.max_count += NODE_ARRAY_INCREMENT));
                 resize = true;
         }
 
-        program->body.block.nodes[program->body.block.count++] = node;
+        block->block.nodes[block->block.count++] = node;
         return resize;
 }
 
 void astnode_free_block(struct astnode *block)
 {
-        for (size_t i = 0; i < block->body.block.count; i++) {
-                astnode_free(block->body.block.nodes[i]);
+        for (size_t i = 0; i < block->block.count; i++) {
+                astnode_free(block->block.nodes[i]);
         }
 
+        free(block->block.nodes);
         free(block);
 }
 
-struct astnode *astnode_integer_literal(size_t line, int value)
+struct astnode *astnode_number_literal(size_t line, double value)
 {
-        struct astnode *node = astnode_generic(NODE_INTEGER_LITERAL, line);
-        node->body.integer_literal.value = value;
-        return node;
-}
-
-struct astnode *astnode_decimal_literal(size_t line, double value)
-{
-        struct astnode *node = astnode_generic(NODE_DECIMAL_LITERAL, line);
-        node->body.decimal_literal.value = value;
+        struct astnode *node = astnode_generic(NODE_NUMBER_LITERAL, line);
+        node->number_literal.value = value;
         return node;
 }
 
 struct astnode *astnode_string_literal(size_t line, char *value)
 {
         struct astnode *node = astnode_generic(NODE_STRING_LITERAL, line);
-        node->body.string_literal.value = strdup(value);
-        node->body.string_literal.length = strlen(value);
+        node->string_literal.value = strdup(value);
+        node->string_literal.length = strlen(value);
+        return node;
+}
+
+struct astnode *astnode_binary(size_t line, struct astnode *left, struct astnode *right, enum binaryop op)
+{
+        struct astnode *node = astnode_generic(NODE_BINARY_OP, line);
+        node->binary.left = left;
+        node->binary.right = right;
+        node->binary.op = op;
         return node;
 }

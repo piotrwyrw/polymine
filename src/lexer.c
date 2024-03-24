@@ -50,7 +50,7 @@ const char *lxtype_string(enum lxtype type)
                 default:
                         return "[??]";
         }
-#undef AUTO_CASE()
+#undef AUTO_CASE
 }
 
 void lexer_init(struct lexer *obj, struct input_handle const *handle)
@@ -163,9 +163,15 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
                         }
                 }
 
-                if (mode == LMODE_NUMBER) {
+                if (mode == LMODE_NUMBER || mode == LMODE_DECIMAL) {
                         if (!is_number_char(c)) {
-                                goto submit_token;
+                                if (c != '.' || mode != LMODE_NUMBER) {
+                                        lx->position --;
+                                        goto submit_token;
+                                }
+
+                                mode = LMODE_DECIMAL;
+                                type = LX_DECIMAL;
                         }
                 }
 
@@ -209,6 +215,7 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
 
         submit_token:
         lxtok_init(tok, type, buffer, line);
+        lx->position++;
 
         free_and_exit:
         free(buffer);
