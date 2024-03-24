@@ -16,7 +16,11 @@ enum nodetype : uint8_t {
         NODE_PROGRAM,
         NODE_NUMBER_LITERAL,
         NODE_STRING_LITERAL,
-        NODE_BINARY_OP
+        NODE_BINARY_OP,
+        NODE_VARIABLE_DECL,
+        NODE_POINTER,
+        NODE_VARIABLE_USE,
+        NODE_VARIABLE_ASSIGNMENT
 };
 
 const char *nodetype_string(enum nodetype);
@@ -67,6 +71,26 @@ struct astnode {
                         struct astnode *right;
                         enum binaryop op;
                 } binary;
+
+                struct {
+                        _Bool constant;
+                        char *identifier;
+                        struct astdtype *type;
+                        struct astnode *value;
+                } declaration;
+
+                struct {
+                        struct astnode *target;
+                } pointer;
+
+                struct {
+                        char *identifier;
+                } variable;
+
+                struct {
+                        char *identifier;
+                        struct astnode *value;
+                } assignment;
         };
 };
 
@@ -137,5 +161,13 @@ struct astnode *astnode_number_literal(size_t, double);
 struct astnode *astnode_string_literal(size_t, char *);
 
 struct astnode *astnode_binary(size_t, struct astnode *, struct astnode *, enum binaryop);
+
+struct astnode *astnode_declaration(size_t, _Bool, char *, struct astdtype *, struct astnode *);
+
+struct astnode *astnode_pointer(size_t, struct astnode *);
+
+struct astnode *astnode_variable(size_t, char *);
+
+struct astnode *astnode_assignment(size_t, char *, struct astnode *);
 
 #endif

@@ -170,6 +170,7 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
 
                 if (mode == LMODE_IDENTIFIER) {
                         if (!is_iden_char(c) && (!is_number_char(c) && buffer_idx > 0)) {
+                                lx->position --;
                                 goto submit_token;
                         }
                 }

@@ -31,8 +31,14 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
                 return parse_string_literal(p);
 
         if (p->current.type == LX_IDEN) {
+                if (p->next.type == LX_EQUALS)
+                        return parse_variable_assignment(p);
+
                 if (strcmp(p->current.value, "nothing") == 0)
                         return parse_nothing(p);
+
+                if (strcmp(p->current.value, "var") == 0)
+                        return parse_variable_declaration(p);
         }
 
         if (p->current.type == LX_LBRACE)
@@ -114,6 +120,126 @@ struct astnode *parse_nothing(struct parser *p)
         parser_advance(p);
 
         return astnode_nothing(line);
+}
+
+struct astnode *parse_variable_declaration(struct parser *p)
+{
+        if (p->current.type != LX_IDEN || strcmp(p->current.value, "var") != 0) {
+                printf("Expected 'var' at the beginning of a variable declaration. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        size_t line = p->line;
+        _Bool constant = false;
+
+        parser_advance(p);
+
+        if (p->current.type == LX_IDEN && strcmp(p->current.value, "stable") == 0) {
+                constant = true;
+                parser_advance(p);
+        }
+
+        if (p->current.type != LX_IDEN) {
+                printf("Expected variable identifier. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        char *id = strdup(p->current.value);
+
+        parser_advance(p);
+
+        if (p->current.type != LX_COLON) {
+                printf("Expected ':' after variable identifier \"%s\". Got %s (\"%s\") on line %ld.\n", id,
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                free(id);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astdtype *type = parse_type(p);
+
+        if (!type) {
+                free(id);
+                return NULL;
+        }
+
+        struct astnode *expr = NULL;
+
+        if (p->current.type == LX_EQUALS) {
+                parser_advance(p);
+
+                expr = parse_expr(p);
+
+                if (!expr) {
+                        free(id);
+                        return NULL;
+                }
+        }
+
+        if (p->current.type != LX_SEMI) {
+                printf("Expected ';' after variable declaration. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                free(id);
+
+                astnode_free(expr);
+
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astnode *decl = astnode_declaration(line, constant, id, type, expr);
+        free(id);
+        return decl;
+}
+
+struct astnode *parse_variable_assignment(struct parser *p)
+{
+        size_t line = p->line;
+
+        if (p->current.type != LX_IDEN) {
+                printf("Expectesd identifier on the left side of a variable assignment. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, line);
+                return NULL;
+        }
+
+        char *id = strdup(p->current.value);
+
+        parser_advance(p);
+
+        if (p->current.type != LX_EQUALS) {
+                printf("Expected '=' after variable identifier. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, line);
+                free(id);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astnode *val = parse_expr(p);
+
+        if (!val) {
+                free(id);
+                return NULL;
+        }
+
+        if (p->current.type != LX_SEMI) {
+                printf("Expected ';' after variable assignment. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                free(id);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astnode *assignment = astnode_assignment(line, id, val);
+
+        free(id);
+
+        return assignment;
 }
 
 struct astdtype *parse_type(struct parser *p)
@@ -232,6 +358,25 @@ struct astnode *parse_atom(struct parser *p)
 
         if (p->current.type == LX_INTEGER || p->current.type == LX_DECIMAL)
                 return parse_number(p);
+
+        if (p->current.type == LX_IDEN && strcmp(p->current.value, "ptr_to") == 0) {
+                size_t line = p->line;
+
+                parser_advance(p);
+
+                struct astnode *to = parse_expr(p);
+
+                if (!to)
+                        return NULL;
+
+                return astnode_pointer(line, to);
+        }
+
+        if (p->current.type == LX_IDEN) {
+                struct astnode *var = astnode_variable(p->line, p->current.value);
+                parser_advance(p);
+                return var;
+        }
 
         printf("Could not identify expression atom starting with %s (\"%s\") on line %ld.\n",
                lxtype_string(p->current.type), p->current.value, p->line);

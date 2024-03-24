@@ -46,7 +46,7 @@ void ast_print(struct astnode *node, size_t level)
 
 
 #define INDENTED(...) \
-        printf("%s", indent); \
+        printf("?\t%s", indent); \
         printf(__VA_ARGS__)
 
         if (!node) {
@@ -58,8 +58,7 @@ void ast_print(struct astnode *node, size_t level)
 
 #undef INDENTED
 #define INDENTED(...) \
-        printf("%ld\t", line);              \
-        printf("%s", indent); \
+        printf("%ld\t%s", line, indent); \
         printf(__VA_ARGS__)
 
         switch (node->type) {
@@ -91,6 +90,30 @@ void ast_print(struct astnode *node, size_t level)
                 INDENTED("Binary operation (%s):\n", binaryop_string(node->binary.op));
                         ast_print(node->binary.left, level + 1);
                         ast_print(node->binary.right, level + 1);
+                        break;
+
+                case NODE_VARIABLE_DECL:
+                        if (node->declaration.constant) {
+                                INDENTED("Stable Variable Declaration");
+                        } else {
+                                INDENTED("Variable Declaration");
+                        }
+                        printf(" (%s):\n", node->declaration.identifier);
+                        ast_print(node->declaration.value, level + 1);
+                        break;
+
+                case NODE_POINTER:
+                INDENTED("Pointer to:\n");
+                        ast_print(node->pointer.target, level + 1);
+                        break;
+
+                case NODE_VARIABLE_USE:
+                INDENTED("Variable Use (%s)\n", node->variable.identifier);
+                        break;
+
+                case NODE_VARIABLE_ASSIGNMENT:
+                INDENTED("Variable Assignment (%s):\n", node->assignment.identifier);
+                        ast_print(node->assignment.value, level + 1);
                         break;
 
                 default:

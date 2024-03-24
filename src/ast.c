@@ -71,6 +71,11 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_PROGRAM)
                 AUTO(NODE_NUMBER_LITERAL)
                 AUTO(NODE_STRING_LITERAL)
+                AUTO(NODE_BINARY_OP)
+                AUTO(NODE_VARIABLE_DECL)
+                AUTO(NODE_POINTER)
+                AUTO(NODE_VARIABLE_USE)
+                AUTO(NODE_VARIABLE_ASSIGNMENT)
 #undef AUTO
                 default:
                         return "[???]";
@@ -124,6 +129,21 @@ void astnode_free(struct astnode *node)
                 case NODE_BINARY_OP:
                         astnode_free(node->binary.left);
                         astnode_free(node->binary.right);
+                        break;
+                case NODE_VARIABLE_DECL:
+                        astnode_free(node->declaration.value);
+                        free(node->declaration.identifier);
+                        astdtype_free(node->declaration.type);
+                        break;
+                case NODE_POINTER:
+                        astnode_free(node->pointer.target);
+                        break;
+                case NODE_VARIABLE_USE:
+                        free(node->variable.identifier);
+                        break;
+                case NODE_VARIABLE_ASSIGNMENT:
+                        free(node->assignment.identifier);
+                        astnode_free(node->assignment.value);
                         break;
                 default:
                         break;
@@ -209,5 +229,37 @@ struct astnode *astnode_binary(size_t line, struct astnode *left, struct astnode
         node->binary.left = left;
         node->binary.right = right;
         node->binary.op = op;
+        return node;
+}
+
+struct astnode *astnode_declaration(size_t line, _Bool constant, char *str, struct astdtype *type, struct astnode *value)
+{
+        struct astnode *node = astnode_generic(NODE_VARIABLE_DECL, line);
+        node->declaration.constant = constant;
+        node->declaration.type = type;
+        node->declaration.value = value;
+        node->declaration.identifier = strdup(str);
+        return node;
+}
+
+struct astnode *astnode_pointer(size_t line, struct astnode *to)
+{
+        struct astnode *node = astnode_generic(NODE_POINTER, line);
+        node->pointer.target = to;
+        return node;
+}
+
+struct astnode *astnode_variable(size_t line, char *str)
+{
+        struct astnode *node = astnode_generic(NODE_VARIABLE_USE, line);
+        node->variable.identifier = strdup(str);
+        return node;
+}
+
+struct astnode *astnode_assignment(size_t line, char *identifier, struct astnode *value)
+{
+        struct astnode *node = astnode_generic(NODE_VARIABLE_ASSIGNMENT, line);
+        node->assignment.value = value;
+        node->assignment.identifier = strdup(identifier);
         return node;
 }
