@@ -20,7 +20,8 @@ enum nodetype : uint8_t {
         NODE_VARIABLE_DECL,
         NODE_POINTER,
         NODE_VARIABLE_USE,
-        NODE_VARIABLE_ASSIGNMENT
+        NODE_VARIABLE_ASSIGNMENT,
+        NODE_FUNCTION_DEFINITION
 };
 
 const char *nodetype_string(enum nodetype);
@@ -91,6 +92,13 @@ struct astnode {
                         char *identifier;
                         struct astnode *value;
                 } assignment;
+
+                struct {
+                        char *identifier;
+                        struct astnode *params; // This is a block too!
+                        struct astdtype *type;
+                        struct astnode *block;
+                } function_def;
         };
 };
 
@@ -169,5 +177,7 @@ struct astnode *astnode_pointer(size_t, struct astnode *);
 struct astnode *astnode_variable(size_t, char *);
 
 struct astnode *astnode_assignment(size_t, char *, struct astnode *);
+
+struct astnode *astnode_function_definition(size_t, char *, struct astnode *, struct astdtype *, struct astnode *);
 
 #endif

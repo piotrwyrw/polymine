@@ -19,6 +19,8 @@ struct astnode *parse_variable_declaration(struct parser *);
 
 struct astnode *parse_variable_assignment(struct parser *);
 
+struct astnode *parse_function_definition(struct parser *);
+
 struct astdtype *parse_type(struct parser *);
 
 struct astnode *parse_expr(struct parser *);
@@ -32,6 +34,5 @@ struct astnode *parse_atom(struct parser *);
 struct astnode *parse_number(struct parser *);
 
 struct astnode *parse_string_literal(struct parser *);
-
 
 #endif

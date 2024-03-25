@@ -116,6 +116,12 @@ void ast_print(struct astnode *node, size_t level)
                         ast_print(node->assignment.value, level + 1);
                         break;
 
+                case NODE_FUNCTION_DEFINITION:
+                        INDENTED("Function Definition (%s):\n", node->function_def.identifier);
+                        ast_print(node->function_def.params, level + 1);
+                        ast_print(node->function_def.block, level + 1);
+                        break;
+
                 default:
                 INDENTED("( Incorrect node type )\n");
                         break;

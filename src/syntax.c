@@ -39,6 +39,9 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
 
                 if (strcmp(p->current.value, "var") == 0)
                         return parse_variable_declaration(p);
+
+                if (strcmp(p->current.value, "func") == 0)
+                        return parse_function_definition(p);
         }
 
         if (p->current.type == LX_LBRACE)
@@ -240,6 +243,157 @@ struct astnode *parse_variable_assignment(struct parser *p)
         free(id);
 
         return assignment;
+}
+
+struct astnode *parse_function_parameters(struct parser *p)
+{
+        if (p->current.type != LX_LPAREN) {
+                printf("Expected '(' at the beginning of a function parameter list. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astnode *params = astnode_empty_block(p->line);
+
+        while (p->current.type != LX_UNDEFINED) {
+                if (p->current.type == LX_RPAREN)
+                        break;
+
+                char *id;
+                struct astdtype *type;
+
+                if (p->current.type != LX_IDEN) {
+                        printf("Expected parameter identifier. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        astnode_free(params);
+                        return NULL;
+                }
+
+                id = strdup(p->current.value);
+
+                parser_advance(p);
+
+                if (p->current.type != LX_COLON) {
+                        printf("Expected ':' after parameter identifier. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        free(id);
+                        astnode_free(params);
+                        return NULL;
+                }
+
+                parser_advance(p);
+
+                type = parse_type(p);
+
+                if (!type) {
+                        free(id);
+                        astdtype_free(type);
+                        astnode_free(params);
+                        return NULL;
+                }
+
+                astnode_push_block(params, astnode_declaration(p->line, false, id, type, NULL));
+
+                free(id);
+
+                if (p->current.type == LX_RPAREN)
+                        break;
+
+                if (p->current.type != LX_COMMA && p->next.type != LX_RPAREN) {
+                        printf("Expected ')' at the end of function parameter list, or ',' and more parameters. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        astnode_free(params);
+                        return NULL;
+                }
+
+                parser_advance(p);
+        }
+
+        if (p->current.type != LX_RPAREN) {
+                printf("Expected ')' after function parameter list. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                astnode_free(params);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        return params;
+}
+
+struct astnode *parse_function_definition(struct parser *p)
+{
+        if (p->current.type != LX_IDEN) {
+                printf("Expected 'func' keyword at the start of a function definition. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        size_t line = p->line;
+
+        parser_advance(p);
+
+        if (p->current.type != LX_IDEN) {
+                printf("Expected function identifier after func keyword. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        char *id = strdup(p->current.value);
+
+        parser_advance(p);
+
+        struct astnode *params = NULL;
+
+        if (p->current.type == LX_LPAREN) {
+                params = parse_function_parameters(p);
+                if (!params) {
+                        free(id);
+                        return NULL;
+                }
+        } else
+                params = astnode_empty_block(p->line);
+
+        if (p->current.type != LX_IDEN || strcmp(p->current.value, "of") != 0) {
+                printf("Expected 'of' after function parameter block. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                free(id);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astdtype *type = parse_type(p);
+
+        if (!type) {
+                free(id);
+                astnode_free(params);
+                return NULL;
+        }
+
+        if (p->current.type != LX_LBRACE) {
+                printf("Expected '{' after function parameter block. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                free(id);
+                astnode_free(params);
+                return NULL;
+        }
+
+        struct astnode *block = parse_block(p);
+
+        if (!block) {
+                free(id);
+                astnode_free(params);
+                return NULL;
+        }
+
+        struct astnode *fdef = astnode_function_definition(line, id, params, type, block);
+
+        free(id);
+
+        return fdef;
 }
 
 struct astdtype *parse_type(struct parser *p)

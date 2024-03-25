@@ -76,6 +76,7 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_POINTER)
                 AUTO(NODE_VARIABLE_USE)
                 AUTO(NODE_VARIABLE_ASSIGNMENT)
+                AUTO(NODE_FUNCTION_DEFINITION)
 #undef AUTO
                 default:
                         return "[???]";
@@ -144,6 +145,12 @@ void astnode_free(struct astnode *node)
                 case NODE_VARIABLE_ASSIGNMENT:
                         free(node->assignment.identifier);
                         astnode_free(node->assignment.value);
+                        break;
+                case NODE_FUNCTION_DEFINITION:
+                        free(node->function_def.identifier);
+                        astnode_free(node->function_def.params);
+                        astnode_free(node->function_def.block);
+                        astdtype_free(node->function_def.type);
                         break;
                 default:
                         break;
@@ -261,5 +268,15 @@ struct astnode *astnode_assignment(size_t line, char *identifier, struct astnode
         struct astnode *node = astnode_generic(NODE_VARIABLE_ASSIGNMENT, line);
         node->assignment.value = value;
         node->assignment.identifier = strdup(identifier);
+        return node;
+}
+
+struct astnode *astnode_function_definition(size_t line, char *identifier, struct astnode *parameters, struct astdtype *type, struct astnode *block)
+{
+        struct astnode *node = astnode_generic(NODE_FUNCTION_DEFINITION, line);
+        node->function_def.identifier = strdup(identifier);
+        node->function_def.params = parameters;
+        node->function_def.type = type;
+        node->function_def.block = block;
         return node;
 }
