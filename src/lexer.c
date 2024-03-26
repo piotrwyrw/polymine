@@ -142,10 +142,8 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
 
                 // The mode selection for string literals works in a different way
                 if (c == '"') {
-                        if (mode == LMODE_STRING) {
-                                lx->position++; // Skip past the '"' so it does not come up in the following run
+                        if (mode == LMODE_STRING)
                                 goto submit_token;
-                        }
                         mode = LMODE_STRING;
                         type = LX_STRING;
                         continue; // The '"' character does not constitute a part of the string
@@ -170,7 +168,7 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
 
                 if (mode == LMODE_IDENTIFIER) {
                         if (!is_iden_char(c) && (!is_number_char(c) && buffer_idx > 0)) {
-                                lx->position --;
+                                lx->position--;
                                 goto submit_token;
                         }
                 }
@@ -178,7 +176,7 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
                 if (mode == LMODE_NUMBER || mode == LMODE_DECIMAL) {
                         if (!is_number_char(c)) {
                                 if (c != '.' || mode != LMODE_NUMBER) {
-                                        lx->position --;
+                                        lx->position--;
                                         goto submit_token;
                                 }
 

@@ -83,11 +83,11 @@ void ast_print(struct astnode *node, size_t level)
                         break;
 
                 case NODE_STRING_LITERAL:
-                INDENTED("String literal (%ld): %s\n", node->string_literal.length, node->string_literal.value);
+                INDENTED("String literal (%ld) '%s'\n", node->string_literal.length, node->string_literal.value);
                         break;
 
                 case NODE_BINARY_OP:
-                INDENTED("Binary operation (%s):\n", binaryop_string(node->binary.op));
+                INDENTED("Binary operation %s:\n", binaryop_string(node->binary.op));
                         ast_print(node->binary.left, level + 1);
                         ast_print(node->binary.right, level + 1);
                         break;
@@ -98,7 +98,10 @@ void ast_print(struct astnode *node, size_t level)
                         } else {
                                 INDENTED("Variable Declaration");
                         }
-                        printf(" (%s):\n", node->declaration.identifier);
+
+                        printf(" '%s' [", node->declaration.identifier);
+                        type_print(node->declaration.type);
+                        printf("]:\n");
                         ast_print(node->declaration.value, level + 1);
                         break;
 
@@ -108,18 +111,25 @@ void ast_print(struct astnode *node, size_t level)
                         break;
 
                 case NODE_VARIABLE_USE:
-                INDENTED("Variable Use (%s)\n", node->variable.identifier);
+                INDENTED("Variable Use '%s'\n", node->variable.identifier);
                         break;
 
                 case NODE_VARIABLE_ASSIGNMENT:
-                INDENTED("Variable Assignment (%s):\n", node->assignment.identifier);
+                INDENTED("Variable Assignment '%s':\n", node->assignment.identifier);
                         ast_print(node->assignment.value, level + 1);
                         break;
 
                 case NODE_FUNCTION_DEFINITION:
-                        INDENTED("Function Definition (%s):\n", node->function_def.identifier);
+                        INDENTED("Function Definition '%s' of ", node->function_def.identifier);
+                        type_print(node->function_def.type);
+                        printf(":\n");
                         ast_print(node->function_def.params, level + 1);
                         ast_print(node->function_def.block, level + 1);
+                        break;
+
+                case NODE_FUNCTION_CALL:
+                INDENTED("Function Call '%s':\n", node->function_call.identifier);
+                        ast_print(node->function_call.values, level + 1);
                         break;
 
                 default:
@@ -128,4 +138,31 @@ void ast_print(struct astnode *node, size_t level)
         }
 
 #undef INDENTED
+}
+
+void type_print(struct astdtype *type)
+{
+        switch (type->type) {
+                case ASTDTYPE_CUSTOM:
+                        printf("%s", type->custom.name);
+                        break;
+
+                case ASTDTYPE_VOID:
+                        printf("void");
+                        break;
+
+                case ASTDTYPE_BUILTIN:
+                        printf("%s", builtin_string(type->builtin.datatype));
+                        break;
+
+                case ASTDTYPE_POINTER:
+                        printf("ptr(");
+                        type_print(type->pointer.to);
+                        printf(")");
+                        break;
+
+                default:
+                        printf("( Unknown Type )");
+                        break;
+        }
 }

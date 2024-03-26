@@ -31,6 +31,8 @@ struct astnode *parse_multiplicative_expr(struct parser *);
 
 struct astnode *parse_atom(struct parser *);
 
+struct astnode *parse_function_call(struct parser *);
+
 struct astnode *parse_number(struct parser *);
 
 struct astnode *parse_string_literal(struct parser *);

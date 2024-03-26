@@ -406,6 +406,11 @@ struct astdtype *parse_type(struct parser *p)
                 return NULL;
         }
 
+        if (strcmp(p->current.value, "void") == 0) {
+                parser_advance(p);
+                return astdtype_void();
+        }
+
         identifier = p->current.value;
 
         enum builtin_type bt = builtin_from_string(identifier);
@@ -507,11 +512,33 @@ struct astnode *parse_multiplicative_expr(struct parser *p)
 
 struct astnode *parse_atom(struct parser *p)
 {
+        if (p->current.type == LX_LPAREN) {
+                parser_advance(p);
+                struct astnode *expr = parse_expr(p);
+
+                if (!expr)
+                        return NULL;
+
+                if (p->current.type != LX_RPAREN) {
+                        printf("Expected ')' after sub-expression. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        astnode_free(expr);
+                        return NULL;
+                }
+
+                parser_advance(p);
+
+                return expr;
+        }
+
         if (p->current.type == LX_STRING)
                 return parse_string_literal(p);
 
         if (p->current.type == LX_INTEGER || p->current.type == LX_DECIMAL)
                 return parse_number(p);
+
+        if (p->current.type == LX_IDEN && p->next.type == LX_LPAREN)
+                return parse_function_call(p);
 
         if (p->current.type == LX_IDEN && strcmp(p->current.value, "ptr_to") == 0) {
                 size_t line = p->line;
@@ -536,6 +563,77 @@ struct astnode *parse_atom(struct parser *p)
                lxtype_string(p->current.type), p->current.value, p->line);
 
         return NULL;
+}
+
+struct astnode *parse_function_call(struct parser *p)
+{
+        if (p->current.type != LX_IDEN) {
+                printf("Expected identifier at the start of a function call. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        size_t line = p->line;
+        char *id = strdup(p->current.value);
+
+        parser_advance(p);
+
+        if (p->current.type != LX_LPAREN) {
+                printf("Expected '(' after function identifier. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                free(id);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astnode *values = astnode_empty_block(line);
+        struct astnode *expr;
+
+        while (p->current.type != LX_UNDEFINED) {
+                if (p->current.type == LX_RPAREN)
+                        break;
+
+                expr = parse_expr(p);
+
+                if (!expr) {
+                        free(id);
+                        astnode_free(values);
+                        return NULL;
+                }
+
+                astnode_push_block(values, expr);
+
+                if (p->current.type == LX_RPAREN)
+                        break;
+
+                if (p->current.type != LX_COMMA && p->next.type != LX_RPAREN) {
+                        printf("Expected ')' or ',' and more values. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        free(id);
+                        astnode_free(values);
+                        return NULL;
+                }
+
+                if (p->current.type == LX_COMMA)
+                        parser_advance(p);
+        }
+
+        if (p->current.type != LX_RPAREN) {
+                printf("Expected ')' at the end of a function call value list. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                free(id);
+                astnode_free(values);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astnode *call = astnode_function_call(line, id, values);
+
+        free(id);
+
+        return call;
 }
 
 struct astnode *parse_number(struct parser *p)

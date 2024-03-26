@@ -15,4 +15,6 @@ char *repeat(char, size_t);
 
 void ast_print(struct astnode *, size_t);
 
+void type_print(struct astdtype *);
+
 #endif

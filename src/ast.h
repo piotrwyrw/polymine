@@ -11,7 +11,7 @@
 enum nodetype : uint8_t {
         NODE_UNDEFINED = 0,
 
-        NODE_NOTHING, // Warning: This is NOT the same as UNDEFINED !!
+        NODE_NOTHING, // Warning: This is NOT the same as UNDEFINED !! Something along the lines on NOP
         NODE_BLOCK,
         NODE_PROGRAM,
         NODE_NUMBER_LITERAL,
@@ -21,7 +21,8 @@ enum nodetype : uint8_t {
         NODE_POINTER,
         NODE_VARIABLE_USE,
         NODE_VARIABLE_ASSIGNMENT,
-        NODE_FUNCTION_DEFINITION
+        NODE_FUNCTION_DEFINITION,
+        NODE_FUNCTION_CALL
 };
 
 const char *nodetype_string(enum nodetype);
@@ -99,6 +100,11 @@ struct astnode {
                         struct astdtype *type;
                         struct astnode *block;
                 } function_def;
+
+                struct {
+                        char *identifier;
+                        struct astnode *values; // And so is this!
+                } function_call;
         };
 };
 
@@ -110,6 +116,8 @@ enum builtin_type : uint8_t {
 };
 
 enum builtin_type builtin_from_string(char *);
+
+const char *builtin_string(enum builtin_type);
 
 enum astdtype_type : uint8_t {
         ASTDTYPE_VOID = 0,
@@ -147,6 +155,8 @@ struct astdtype *astdtype_pointer(struct astdtype *);
 
 struct astdtype *astdtype_builtin(enum builtin_type);
 
+struct astdtype *astdtype_void();
+
 struct astdtype *astdtype_custom(char *);
 
 /* Recursively free a node */
@@ -179,5 +189,7 @@ struct astnode *astnode_variable(size_t, char *);
 struct astnode *astnode_assignment(size_t, char *, struct astnode *);
 
 struct astnode *astnode_function_definition(size_t, char *, struct astnode *, struct astdtype *, struct astnode *);
+
+struct astnode *astnode_function_call(size_t, char *, struct astnode *);
 
 #endif

@@ -18,6 +18,18 @@ enum builtin_type builtin_from_string(char *str)
         return BUILTIN_UNDEFINED;
 }
 
+const char *builtin_string(enum builtin_type type)
+{
+#define AUTO(type) case type: return #type;
+        switch (type) {
+                AUTO(BUILTIN_UNDEFINED)
+                AUTO(BUILTIN_NUMBER)
+                AUTO(BUILTIN_GENERIC_BYTE)
+                AUTO(BUILTIN_CHAR)
+        }
+#undef AUTO
+}
+
 void astdtype_free(struct astdtype *adt)
 {
         switch (adt->type) {
@@ -55,6 +67,11 @@ struct astdtype *astdtype_builtin(enum builtin_type builtin)
         return wrapper;
 }
 
+struct astdtype *astdtype_void()
+{
+        return astdtype_generic(ASTDTYPE_VOID);
+}
+
 struct astdtype *astdtype_custom(char *name)
 {
         struct astdtype *wrapper = astdtype_generic(ASTDTYPE_CUSTOM);
@@ -77,6 +94,7 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_VARIABLE_USE)
                 AUTO(NODE_VARIABLE_ASSIGNMENT)
                 AUTO(NODE_FUNCTION_DEFINITION)
+                AUTO(NODE_FUNCTION_CALL)
 #undef AUTO
                 default:
                         return "[???]";
@@ -151,6 +169,10 @@ void astnode_free(struct astnode *node)
                         astnode_free(node->function_def.params);
                         astnode_free(node->function_def.block);
                         astdtype_free(node->function_def.type);
+                        break;
+                case NODE_FUNCTION_CALL:
+                        free(node->function_call.identifier);
+                        astnode_free(node->function_call.values);
                         break;
                 default:
                         break;
@@ -278,5 +300,13 @@ struct astnode *astnode_function_definition(size_t line, char *identifier, struc
         node->function_def.params = parameters;
         node->function_def.type = type;
         node->function_def.block = block;
+        return node;
+}
+
+struct astnode *astnode_function_call(size_t line, char *identifier, struct astnode *values)
+{
+        struct astnode *node = astnode_generic(NODE_FUNCTION_CALL, line);
+        node->function_call.identifier = strdup(identifier);
+        node->function_call.values = values;
         return node;
 }
