@@ -21,6 +21,8 @@ struct astnode *parse_variable_assignment(struct parser *);
 
 struct astnode *parse_function_definition(struct parser *);
 
+struct astnode *parse_resolve(struct parser *);
+
 struct astdtype *parse_type(struct parser *);
 
 struct astnode *parse_expr(struct parser *);

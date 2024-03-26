@@ -174,6 +174,9 @@ void astnode_free(struct astnode *node)
                         free(node->function_call.identifier);
                         astnode_free(node->function_call.values);
                         break;
+                case NODE_RESOLVE:
+                        astnode_free(node->resolve.value);
+                        break;
                 default:
                         break;
         }
@@ -308,5 +311,12 @@ struct astnode *astnode_function_call(size_t line, char *identifier, struct astn
         struct astnode *node = astnode_generic(NODE_FUNCTION_CALL, line);
         node->function_call.identifier = strdup(identifier);
         node->function_call.values = values;
+        return node;
+}
+
+struct astnode *astnode_resolve(size_t line, struct astnode *value)
+{
+        struct astnode *node = astnode_generic(NODE_RESOLVE, line);
+        node->resolve.value = value;
         return node;
 }

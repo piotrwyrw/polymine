@@ -101,7 +101,14 @@ void ast_print(struct astnode *node, size_t level)
 
                         printf(" '%s' [", node->declaration.identifier);
                         type_print(node->declaration.type);
-                        printf("]:\n");
+                        printf("]");
+
+                        if (!node->declaration.value) {
+                                printf("\n");
+                                break;
+                        }
+
+                        printf(":\n");
                         ast_print(node->declaration.value, level + 1);
                         break;
 
@@ -130,6 +137,11 @@ void ast_print(struct astnode *node, size_t level)
                 case NODE_FUNCTION_CALL:
                 INDENTED("Function Call '%s':\n", node->function_call.identifier);
                         ast_print(node->function_call.values, level + 1);
+                        break;
+
+                case NODE_RESOLVE:
+                INDENTED("Resolve:\n");
+                        ast_print(node->resolve.value, level + 1);
                         break;
 
                 default:

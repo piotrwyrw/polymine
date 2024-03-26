@@ -24,6 +24,17 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
 {
         *status = PARSER_SYNTAX_ERROR;
 
+        // Redundant semicolons are naughty, but we won't complain
+        if (p->current.type == LX_SEMI) {
+                size_t line = p->line;
+
+                printf("Warning: Redundant semicolon on line %ld.\n", line);
+
+                parser_advance(p);
+
+                return astnode_nothing(line);
+        }
+
         if (p->current.type == LX_UNDEFINED)
                 goto exit_no_match;
 
@@ -33,6 +44,9 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
         if (p->current.type == LX_IDEN) {
                 if (p->next.type == LX_EQUALS)
                         return parse_variable_assignment(p);
+
+                if (strcmp(p->current.value, "resolve") == 0)
+                        return parse_resolve(p);
 
                 if (strcmp(p->current.value, "nothing") == 0)
                         return parse_nothing(p);
@@ -47,7 +61,9 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
         if (p->current.type == LX_LBRACE)
                 return parse_block(p);
 
-        return parse_expr(p);
+        struct astnode *expr = parse_expr(p);
+
+        return expr;
 
         exit_no_match:
         *status = PARSER_NO_MATCH;
@@ -127,7 +143,7 @@ struct astnode *parse_nothing(struct parser *p)
 
 struct astnode *parse_variable_declaration(struct parser *p)
 {
-        if (p->current.type != LX_IDEN || strcmp(p->current.value, "var") != 0) {
+        if (p->current.type != LX_IDEN || (p->current.type == LX_IDEN && strcmp(p->current.value, "var") != 0)) {
                 printf("Expected 'var' at the beginning of a variable declaration. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
@@ -182,18 +198,6 @@ struct astnode *parse_variable_declaration(struct parser *p)
                 }
         }
 
-        if (p->current.type != LX_SEMI) {
-                printf("Expected ';' after variable declaration. Got %s (\"%s\") on line %ld.\n",
-                       lxtype_string(p->current.type), p->current.value, p->line);
-                free(id);
-
-                astnode_free(expr);
-
-                return NULL;
-        }
-
-        parser_advance(p);
-
         struct astnode *decl = astnode_declaration(line, constant, id, type, expr);
         free(id);
         return decl;
@@ -228,15 +232,6 @@ struct astnode *parse_variable_assignment(struct parser *p)
                 free(id);
                 return NULL;
         }
-
-        if (p->current.type != LX_SEMI) {
-                printf("Expected ';' after variable assignment. Got %s (\"%s\") on line %ld.\n",
-                       lxtype_string(p->current.type), p->current.value, p->line);
-                free(id);
-                return NULL;
-        }
-
-        parser_advance(p);
 
         struct astnode *assignment = astnode_assignment(line, id, val);
 
@@ -394,6 +389,21 @@ struct astnode *parse_function_definition(struct parser *p)
         free(id);
 
         return fdef;
+}
+
+struct astnode *parse_resolve(struct parser *p)
+{
+        if (p->current.type != LX_IDEN || (p->current.type == LX_IDEN && strcmp(p->current.value, "resolve") != 0)) {
+                printf("Expected 'resolve' at the beginning of a resolution statement. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        size_t line = p->line;
+
+        parser_advance(p);
+
+        return astnode_resolve(line, parse_expr(p));
 }
 
 struct astdtype *parse_type(struct parser *p)

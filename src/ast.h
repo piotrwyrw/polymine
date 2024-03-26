@@ -22,7 +22,8 @@ enum nodetype : uint8_t {
         NODE_VARIABLE_USE,
         NODE_VARIABLE_ASSIGNMENT,
         NODE_FUNCTION_DEFINITION,
-        NODE_FUNCTION_CALL
+        NODE_FUNCTION_CALL,
+        NODE_RESOLVE
 };
 
 const char *nodetype_string(enum nodetype);
@@ -105,6 +106,10 @@ struct astnode {
                         char *identifier;
                         struct astnode *values; // And so is this!
                 } function_call;
+
+                struct {
+                        struct astnode *value;
+                } resolve;
         };
 };
 
@@ -191,5 +196,7 @@ struct astnode *astnode_assignment(size_t, char *, struct astnode *);
 struct astnode *astnode_function_definition(size_t, char *, struct astnode *, struct astdtype *, struct astnode *);
 
 struct astnode *astnode_function_call(size_t, char *, struct astnode *);
+
+struct astnode *astnode_resolve(size_t, struct astnode *);
 
 #endif
