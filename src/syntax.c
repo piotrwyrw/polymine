@@ -84,7 +84,6 @@ struct astnode *parse_block_very_advanced(struct parser *p, _Bool decorated, str
                 parser_advance(p);
         }
 
-//        struct astnode *block = astnode_empty_block(p->line, p->block);
         struct astnode *node;
         enum pstatus status;
 
@@ -126,7 +125,8 @@ struct astnode *parse_block_very_advanced(struct parser *p, _Bool decorated, str
         return block;
 
         syntax_error:
-        astnode_free(block);
+
+        p->block = oldBlock;
 
         return NULL;
 }
