@@ -39,6 +39,7 @@ enum binaryop : uint8_t {
 };
 
 enum binaryop bop_from_lxtype(enum lxtype);
+
 const char *binaryop_string(enum binaryop);
 
 struct astdtype;
@@ -46,6 +47,8 @@ struct astdtype;
 struct astnode {
         enum nodetype type;
         size_t line;
+        struct astnode *super; // The enclosing block
+        struct astnode *holder; // The holder node. NULL most of the time.
         union {
                 struct {
                         struct astnode *block;
@@ -176,38 +179,38 @@ struct astdtype *astdtype_custom(char *);
 /* Recursively free a node */
 void astnode_free(struct astnode *);
 
-struct astnode *astnode_nothing(size_t);
+struct astnode *astnode_generic(enum nodetype, size_t, struct astnode *);
+
+struct astnode *astnode_nothing(size_t, struct astnode *);
 
 struct astnode *astnode_empty_program();
 
-struct astnode *astnode_empty_block(size_t);
+struct astnode *astnode_empty_block(size_t, struct astnode *);
 
 _Bool astnode_push_block(struct astnode *, struct astnode *);
 
 void astnode_free_block(struct astnode *);
 
-struct astnode *astnode_generic(enum nodetype, size_t);
+struct astnode *astnode_float_literal(size_t, struct astnode *, double);
 
-struct astnode *astnode_float_literal(size_t, double);
+struct astnode *astnode_integer_literal(size_t, struct astnode *, int);
 
-struct astnode *astnode_integer_literal(size_t, int);
+struct astnode *astnode_string_literal(size_t, struct astnode *, char *);
 
-struct astnode *astnode_string_literal(size_t, char *);
+struct astnode *astnode_binary(size_t, struct astnode *, struct astnode *, struct astnode *, enum binaryop);
 
-struct astnode *astnode_binary(size_t, struct astnode *, struct astnode *, enum binaryop);
+struct astnode *astnode_declaration(size_t, struct astnode *, _Bool, char *, struct astdtype *, struct astnode *);
 
-struct astnode *astnode_declaration(size_t, _Bool, char *, struct astdtype *, struct astnode *);
+struct astnode *astnode_pointer(size_t, struct astnode *, struct astnode *);
 
-struct astnode *astnode_pointer(size_t, struct astnode *);
+struct astnode *astnode_variable(size_t, struct astnode *, char *);
 
-struct astnode *astnode_variable(size_t, char *);
+struct astnode *astnode_assignment(size_t, struct astnode *, char *, struct astnode *);
 
-struct astnode *astnode_assignment(size_t, char *, struct astnode *);
+struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *);
 
-struct astnode *astnode_function_definition(size_t, char *, struct astnode *, struct astdtype *, struct astnode *);
+struct astnode *astnode_function_call(size_t, struct astnode *, char *, struct astnode *);
 
-struct astnode *astnode_function_call(size_t, char *, struct astnode *);
-
-struct astnode *astnode_resolve(size_t, struct astnode *);
+struct astnode *astnode_resolve(size_t, struct astnode *, struct astnode *);
 
 #endif

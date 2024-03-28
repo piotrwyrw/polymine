@@ -17,6 +17,8 @@ struct astnode *parse(struct parser *p)
         if (!program->program.block)
                 return NULL;
 
+        program->program.block->holder = program;
+
         return program;
 }
 
@@ -32,7 +34,7 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
 
                 parser_advance(p);
 
-                return astnode_nothing(line);
+                return astnode_nothing(line, p->block);
         }
 
         if (p->current.type == LX_UNDEFINED)
@@ -70,7 +72,7 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
         return NULL;
 }
 
-struct astnode *parse_block_advanced(struct parser *p, _Bool decorated)
+struct astnode *parse_block_very_advanced(struct parser *p, _Bool decorated, struct astnode *block)
 {
         if (decorated) {
                 if (p->current.type != LX_LBRACE) {
@@ -82,9 +84,14 @@ struct astnode *parse_block_advanced(struct parser *p, _Bool decorated)
                 parser_advance(p);
         }
 
-        struct astnode *block = astnode_empty_block(p->line);
+//        struct astnode *block = astnode_empty_block(p->line, p->block);
         struct astnode *node;
         enum pstatus status;
+
+        struct astnode *oldBlock = p->block;
+
+        // All nodes inside this block will refer to the new block throughout its lifetime
+        p->block = block;
 
         // Keep parsing for as long as new tokens are available
         while (p->current.type != LX_UNDEFINED) {
@@ -113,12 +120,25 @@ struct astnode *parse_block_advanced(struct parser *p, _Bool decorated)
                 parser_advance(p);
         }
 
+        // Go back to the old block
+        p->block = oldBlock;
+
         return block;
 
         syntax_error:
         astnode_free(block);
 
         return NULL;
+}
+
+struct astnode *parse_block_advanced(struct parser *p, _Bool decorated)
+{
+        struct astnode *block = astnode_empty_block(p->line, p->block);
+        if (!parse_block_very_advanced(p, decorated, block)) {
+                astnode_free(block);
+                return NULL;
+        }
+        return block;
 }
 
 inline struct astnode *parse_block(struct parser *p)
@@ -138,7 +158,7 @@ struct astnode *parse_nothing(struct parser *p)
 
         parser_advance(p);
 
-        return astnode_nothing(line);
+        return astnode_nothing(line, p->block);
 }
 
 struct astnode *parse_variable_declaration(struct parser *p)
@@ -198,7 +218,11 @@ struct astnode *parse_variable_declaration(struct parser *p)
                 }
         }
 
-        struct astnode *decl = astnode_declaration(line, constant, id, type, expr);
+        struct astnode *decl = astnode_declaration(line, p->block, constant, id, type, expr);
+
+        if (decl->declaration.value)
+                decl->declaration.value->holder = decl;
+
         free(id);
         return decl;
 }
@@ -233,7 +257,9 @@ struct astnode *parse_variable_assignment(struct parser *p)
                 return NULL;
         }
 
-        struct astnode *assignment = astnode_assignment(line, id, val);
+        struct astnode *assignment = astnode_assignment(line, p->block, id, val);
+
+        assignment->assignment.value->holder = assignment;
 
         free(id);
 
@@ -250,7 +276,7 @@ struct astnode *parse_function_parameters(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *params = astnode_empty_block(p->line);
+        struct astnode *params = astnode_empty_block(p->line, p->block);
 
         while (p->current.type != LX_UNDEFINED) {
                 if (p->current.type == LX_RPAREN)
@@ -289,7 +315,7 @@ struct astnode *parse_function_parameters(struct parser *p)
                         return NULL;
                 }
 
-                astnode_push_block(params, astnode_declaration(p->line, false, id, type, NULL));
+                astnode_push_block(params, astnode_declaration(p->line, p->block, false, id, type, NULL));
 
                 free(id);
 
@@ -349,7 +375,7 @@ struct astnode *parse_function_definition(struct parser *p)
                         return NULL;
                 }
         } else
-                params = astnode_empty_block(p->line);
+                params = astnode_empty_block(p->line, p->block);
 
         if (p->current.type != LX_IDEN || strcmp(p->current.value, "of") != 0) {
                 printf("Expected 'of' after function parameter block. Got %s (\"%s\") on line %ld.\n",
@@ -384,7 +410,10 @@ struct astnode *parse_function_definition(struct parser *p)
                 return NULL;
         }
 
-        struct astnode *fdef = astnode_function_definition(line, id, params, type, block);
+        struct astnode *fdef = astnode_function_definition(line, p->block, id, params, type, block);
+
+        fdef->function_def.params->holder = fdef;
+        fdef->function_def.block->holder = fdef;
 
         free(id);
 
@@ -403,7 +432,10 @@ struct astnode *parse_resolve(struct parser *p)
 
         parser_advance(p);
 
-        return astnode_resolve(line, parse_expr(p));
+        struct astnode *resv = astnode_resolve(line, p->block, parse_expr(p));
+        resv->resolve.value->holder = resv;
+
+        return resv;
 }
 
 struct astdtype *parse_type(struct parser *p)
@@ -488,7 +520,7 @@ struct astnode *parse_additive_expr(struct parser *p)
                         return NULL;
                 }
 
-                left = astnode_binary(line, left, right, op);
+                left = astnode_binary(line, p->block, left, right, op);
         }
 
         return left;
@@ -514,7 +546,7 @@ struct astnode *parse_multiplicative_expr(struct parser *p)
                         return NULL;
                 }
 
-                left = astnode_binary(line, left, right, op);
+                left = astnode_binary(line, p->block, left, right, op);
         }
 
         return left;
@@ -560,11 +592,11 @@ struct astnode *parse_atom(struct parser *p)
                 if (!to)
                         return NULL;
 
-                return astnode_pointer(line, to);
+                return astnode_pointer(line, p->block, to);
         }
 
         if (p->current.type == LX_IDEN) {
-                struct astnode *var = astnode_variable(p->line, p->current.value);
+                struct astnode *var = astnode_variable(p->line, p->block, p->current.value);
                 parser_advance(p);
                 return var;
         }
@@ -597,7 +629,7 @@ struct astnode *parse_function_call(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *values = astnode_empty_block(line);
+        struct astnode *values = astnode_empty_block(line, p->block);
         struct astnode *expr;
 
         while (p->current.type != LX_UNDEFINED) {
@@ -639,7 +671,8 @@ struct astnode *parse_function_call(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *call = astnode_function_call(line, id, values);
+        struct astnode *call = astnode_function_call(line, p->block, id, values);
+        call->function_call.values->holder = call;
 
         free(id);
 
@@ -659,9 +692,9 @@ struct astnode *parse_number(struct parser *p)
         struct astnode *n;
 
         if (type == LX_INTEGER)
-                n = astnode_integer_literal(p->line, string_to_integer(p->current.value));
+                n = astnode_integer_literal(p->line, p->block, string_to_integer(p->current.value));
         else
-                n = astnode_float_literal(p->line, string_to_float(p->current.value));
+                n = astnode_float_literal(p->line, p->block, string_to_float(p->current.value));
 
         parser_advance(p);
 
@@ -676,7 +709,7 @@ struct astnode *parse_string_literal(struct parser *p)
                 return NULL;
         }
 
-        struct astnode *str = astnode_string_literal(p->line, p->current.value);;;
+        struct astnode *str = astnode_string_literal(p->line, p->block, p->current.value);
 
         parser_advance(p);
 

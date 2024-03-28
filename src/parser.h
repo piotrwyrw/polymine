@@ -9,6 +9,7 @@ struct parser {
 	struct lxtok current;
 	struct lxtok next;
 	struct lexer *lx;
+        struct astnode *block;
 	size_t line;
 };
 

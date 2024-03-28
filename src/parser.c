@@ -7,6 +7,7 @@ void parser_init(struct parser *p, struct lexer *lx)
 {
         p->lx = lx;
         p->line = 1;
+        p->block = NULL;
 
         lxtok_init(&p->current, LX_UNDEFINED, NULL, 1);
         lxtok_init(&p->next, LX_UNDEFINED, NULL, 1);

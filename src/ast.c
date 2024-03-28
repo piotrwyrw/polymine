@@ -193,29 +193,31 @@ void astnode_free(struct astnode *node)
         free(node);
 }
 
-struct astnode *astnode_generic(enum nodetype type, size_t line)
+struct astnode *astnode_generic(enum nodetype type, size_t line, struct astnode *block)
 {
         struct astnode *node = malloc(sizeof(struct astnode));
         node->type = type;
         node->line = line;
+        node->super = block;
+        node->holder = NULL;
         return node;
 }
 
-struct astnode *astnode_nothing(size_t line)
+struct astnode *astnode_nothing(size_t line, struct astnode *block)
 {
-        return astnode_generic(NODE_NOTHING, line);
+        return astnode_generic(NODE_NOTHING, line, block);
 }
 
 struct astnode *astnode_empty_program()
 {
-        struct astnode *node = astnode_generic(NODE_PROGRAM, 0);
+        struct astnode *node = astnode_generic(NODE_PROGRAM, 0, NULL);
         node->program.block = NULL;
         return node;
 }
 
-struct astnode *astnode_empty_block(size_t line)
+struct astnode *astnode_empty_block(size_t line, struct astnode *block)
 {
-        struct astnode *node = astnode_generic(NODE_BLOCK, line);
+        struct astnode *node = astnode_generic(NODE_BLOCK, line, block);
 
         node->block.max_count = NODE_ARRAY_INCREMENT;
         node->block.count = 0;
@@ -249,40 +251,40 @@ void astnode_free_block(struct astnode *block)
         free(block);
 }
 
-struct astnode *astnode_float_literal(size_t line, double value)
+struct astnode *astnode_float_literal(size_t line, struct astnode *block, double value)
 {
-        struct astnode *node = astnode_generic(NODE_FLOAT_LITERAL, line);
+        struct astnode *node = astnode_generic(NODE_FLOAT_LITERAL, line, block);
         node->float_literal.floatValue = value;
         return node;
 }
 
-struct astnode *astnode_integer_literal(size_t line, int value)
+struct astnode *astnode_integer_literal(size_t line, struct astnode *block, int value)
 {
-        struct astnode *node = astnode_generic(NODE_INTEGER_LITERAL, line);
+        struct astnode *node = astnode_generic(NODE_INTEGER_LITERAL, line, block);
         node->integer_literal.integerValue = value;
         return node;
 }
 
-struct astnode *astnode_string_literal(size_t line, char *value)
+struct astnode *astnode_string_literal(size_t line, struct astnode *block, char *value)
 {
-        struct astnode *node = astnode_generic(NODE_STRING_LITERAL, line);
+        struct astnode *node = astnode_generic(NODE_STRING_LITERAL, line, block);
         node->string_literal.value = strdup(value);
         node->string_literal.length = strlen(value);
         return node;
 }
 
-struct astnode *astnode_binary(size_t line, struct astnode *left, struct astnode *right, enum binaryop op)
+struct astnode *astnode_binary(size_t line, struct astnode *block, struct astnode *left, struct astnode *right, enum binaryop op)
 {
-        struct astnode *node = astnode_generic(NODE_BINARY_OP, line);
+        struct astnode *node = astnode_generic(NODE_BINARY_OP, line, block);
         node->binary.left = left;
         node->binary.right = right;
         node->binary.op = op;
         return node;
 }
 
-struct astnode *astnode_declaration(size_t line, _Bool constant, char *str, struct astdtype *type, struct astnode *value)
+struct astnode *astnode_declaration(size_t line, struct astnode *block, _Bool constant, char *str, struct astdtype *type, struct astnode *value)
 {
-        struct astnode *node = astnode_generic(NODE_VARIABLE_DECL, line);
+        struct astnode *node = astnode_generic(NODE_VARIABLE_DECL, line, block);
         node->declaration.constant = constant;
         node->declaration.type = type;
         node->declaration.value = value;
@@ -290,31 +292,31 @@ struct astnode *astnode_declaration(size_t line, _Bool constant, char *str, stru
         return node;
 }
 
-struct astnode *astnode_pointer(size_t line, struct astnode *to)
+struct astnode *astnode_pointer(size_t line, struct astnode *block, struct astnode *to)
 {
-        struct astnode *node = astnode_generic(NODE_POINTER, line);
+        struct astnode *node = astnode_generic(NODE_POINTER, line, block);
         node->pointer.target = to;
         return node;
 }
 
-struct astnode *astnode_variable(size_t line, char *str)
+struct astnode *astnode_variable(size_t line, struct astnode *block, char *str)
 {
-        struct astnode *node = astnode_generic(NODE_VARIABLE_USE, line);
+        struct astnode *node = astnode_generic(NODE_VARIABLE_USE, line, block);
         node->variable.identifier = strdup(str);
         return node;
 }
 
-struct astnode *astnode_assignment(size_t line, char *identifier, struct astnode *value)
+struct astnode *astnode_assignment(size_t line, struct astnode *block, char *identifier, struct astnode *value)
 {
-        struct astnode *node = astnode_generic(NODE_VARIABLE_ASSIGNMENT, line);
+        struct astnode *node = astnode_generic(NODE_VARIABLE_ASSIGNMENT, line, block);
         node->assignment.value = value;
         node->assignment.identifier = strdup(identifier);
         return node;
 }
 
-struct astnode *astnode_function_definition(size_t line, char *identifier, struct astnode *parameters, struct astdtype *type, struct astnode *block)
+struct astnode *astnode_function_definition(size_t line, struct astnode *superblock, char *identifier, struct astnode *parameters, struct astdtype *type, struct astnode *block)
 {
-        struct astnode *node = astnode_generic(NODE_FUNCTION_DEFINITION, line);
+        struct astnode *node = astnode_generic(NODE_FUNCTION_DEFINITION, line, superblock);
         node->function_def.identifier = strdup(identifier);
         node->function_def.params = parameters;
         node->function_def.type = type;
@@ -322,17 +324,17 @@ struct astnode *astnode_function_definition(size_t line, char *identifier, struc
         return node;
 }
 
-struct astnode *astnode_function_call(size_t line, char *identifier, struct astnode *values)
+struct astnode *astnode_function_call(size_t line, struct astnode *block, char *identifier, struct astnode *values)
 {
-        struct astnode *node = astnode_generic(NODE_FUNCTION_CALL, line);
+        struct astnode *node = astnode_generic(NODE_FUNCTION_CALL, line, block);
         node->function_call.identifier = strdup(identifier);
         node->function_call.values = values;
         return node;
 }
 
-struct astnode *astnode_resolve(size_t line, struct astnode *value)
+struct astnode *astnode_resolve(size_t line, struct astnode *block, struct astnode *value)
 {
-        struct astnode *node = astnode_generic(NODE_RESOLVE, line);
+        struct astnode *node = astnode_generic(NODE_RESOLVE, line, block);
         node->resolve.value = value;
         return node;
 }
