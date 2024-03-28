@@ -106,7 +106,7 @@ struct astnode *parse_block_very_advanced(struct parser *p, _Bool decorated, str
                         goto syntax_error;
                 }
 
-                astnode_push_block(block, node);
+                astnode_push_compound(block->block.nodes, node);
         }
 
         if (decorated) {
@@ -315,7 +315,7 @@ struct astnode *parse_function_parameters(struct parser *p)
                         return NULL;
                 }
 
-                astnode_push_block(params, astnode_declaration(p->line, p->block, false, id, type, NULL));
+                astnode_push_compound(params->block.nodes, astnode_declaration(p->line, p->block, false, id, type, NULL));
 
                 free(id);
 
@@ -644,7 +644,7 @@ struct astnode *parse_function_call(struct parser *p)
                         return NULL;
                 }
 
-                astnode_push_block(values, expr);
+                astnode_push_compound(values->block.nodes, expr);
 
                 if (p->current.type == LX_RPAREN)
                         break;

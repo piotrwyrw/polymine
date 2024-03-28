@@ -3,6 +3,7 @@
 #include "parser.h"
 #include "syntax.h"
 #include "util.h"
+#include "semantics.h"
 
 #include <stdio.h>
 
@@ -17,11 +18,13 @@ int main(void)
         struct lexer lex;
         lexer_init(&lex, &handle);
 
-	struct parser p;
-	parser_init(&p, &lex);
+        struct parser p;
+        parser_init(&p, &lex);
 
         struct astnode *node = parse(&p);
+
         if (node) {
+                analyze_program(node);
                 ast_print(node, 0);
                 astnode_free(node);
         }

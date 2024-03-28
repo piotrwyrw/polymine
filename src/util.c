@@ -82,8 +82,12 @@ void ast_print(struct astnode *node, size_t level)
                         break;
                 case NODE_BLOCK:
                 INDENTED("Block:\n");
-                        for (size_t i = 0; i < node->block.count; i++)
-                                ast_print(node->block.nodes[i], level + 1);
+                        ast_print(node->block.nodes, level + 1);
+                        break;
+                case NODE_COMPOUND:
+                INDENTED("Compound:\n");
+                        for (size_t i = 0; i < node->node_compound.count; i++)
+                                ast_print(node->node_compound.array[i], level + 1);
                         break;
                 case NODE_PROGRAM:
                 INDENTED("Program:\n");

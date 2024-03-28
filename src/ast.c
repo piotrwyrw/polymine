@@ -148,6 +148,9 @@ void astnode_free(struct astnode *node)
                 case NODE_PROGRAM:
                         astnode_free(node->program.block);
                         break;
+                case NODE_COMPOUND:
+                        astnode_free_compound(node);
+                        return;
                 case NODE_BLOCK:
                         astnode_free_block(node);
                         return;
@@ -215,39 +218,67 @@ struct astnode *astnode_empty_program()
         return node;
 }
 
-struct astnode *astnode_empty_block(size_t line, struct astnode *block)
+struct astnode *astnode_empty_compound(size_t line, struct astnode *block)
 {
-        struct astnode *node = astnode_generic(NODE_BLOCK, line, block);
+        struct astnode *node = astnode_generic(NODE_COMPOUND, line, block);
 
-        node->block.max_count = NODE_ARRAY_INCREMENT;
-        node->block.count = 0;
-        node->block.nodes = calloc(node->block.max_count, sizeof(struct astnode *));
+        node->node_compound.max_count = NODE_ARRAY_INCREMENT;
+        node->node_compound.count = 0;
+        node->node_compound.array = calloc(node->node_compound.max_count, sizeof(struct astnode *));
 
         return node;
 }
 
-_Bool astnode_push_block(struct astnode *block, struct astnode *node)
+struct astnode *astnode_empty_block(size_t line, struct astnode *block)
+{
+        struct astnode *node = astnode_generic(NODE_BLOCK, line, block);
+        node->block.nodes = astnode_empty_compound(line, node);
+        node->block.symbols = astnode_empty_compound(line, node);
+        return node;
+}
+
+_Bool astnode_push_compound(struct astnode *compound, struct astnode *node)
 {
         _Bool resize = false;
 
         // Resize the array if needed
-        if (block->block.count >= block->block.max_count) {
-                block->block.nodes = realloc(block->block.nodes, sizeof(struct astnode *) *
-                                                                 (block->block.max_count += NODE_ARRAY_INCREMENT));
+        if (compound->node_compound.count >= compound->node_compound.max_count) {
+                compound->node_compound.array = realloc(compound->node_compound.array, sizeof(struct astnode *) *
+                                                                                       (compound->node_compound.max_count += NODE_ARRAY_INCREMENT));
                 resize = true;
         }
 
-        block->block.nodes[block->block.count++] = node;
+        compound->node_compound.array[compound->node_compound.count++] = node;
         return resize;
+}
+
+void *astnode_compound_foreach(struct astnode *compound, void *param, void *(*fun)(void *, struct astnode *))
+{
+        void *result;
+
+        for (size_t i = 0; i < compound->node_compound.count; i ++) {
+                result = fun(param, compound->node_compound.array[i]);
+                if (result)
+                        return result;
+        }
+
+        return NULL;
+}
+
+void astnode_free_compound(struct astnode *compound)
+{
+        for (size_t i = 0; i < compound->node_compound.count; i++) {
+                astnode_free(compound->node_compound.array[i]);
+        }
+
+        free(compound->node_compound.array);
+        free(compound);
 }
 
 void astnode_free_block(struct astnode *block)
 {
-        for (size_t i = 0; i < block->block.count; i++) {
-                astnode_free(block->block.nodes[i]);
-        }
-
-        free(block->block.nodes);
+        astnode_free_compound(block->block.nodes);
+        astnode_free_compound(block->block.symbols);
         free(block);
 }
 
@@ -336,5 +367,14 @@ struct astnode *astnode_resolve(size_t line, struct astnode *block, struct astno
 {
         struct astnode *node = astnode_generic(NODE_RESOLVE, line, block);
         node->resolve.value = value;
+        return node;
+}
+
+struct astnode *astnode_variable_symbol(struct astnode *block, char *id, struct astdtype *type, struct astnode *declaration)
+{
+        struct astnode *node = astnode_generic(NODE_VARIABLE_SYMBOL, block->line, block);
+        node->variable_symbol.identifier = id;
+        node->variable_symbol.type = type;
+        node->variable_symbol.declaration = declaration;
         return node;
 }

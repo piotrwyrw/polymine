@@ -12,6 +12,7 @@ enum nodetype : uint8_t {
         NODE_UNDEFINED = 0,
 
         NODE_NOTHING, // Warning: This is NOT the same as UNDEFINED !! Something along the lines on NOP
+        NODE_COMPOUND,
         NODE_BLOCK,
         NODE_PROGRAM,
         NODE_FLOAT_LITERAL,
@@ -24,7 +25,10 @@ enum nodetype : uint8_t {
         NODE_VARIABLE_ASSIGNMENT,
         NODE_FUNCTION_DEFINITION,
         NODE_FUNCTION_CALL,
-        NODE_RESOLVE
+        NODE_RESOLVE,
+
+        // Semantic stuff
+        NODE_VARIABLE_SYMBOL
 };
 
 const char *nodetype_string(enum nodetype);
@@ -55,10 +59,15 @@ struct astnode {
                 } program;
 
                 struct {
-                        struct astnode **nodes;
+                        struct astnode *nodes;
+                        struct astnode *symbols;
+                } block;
+
+                struct {
+                        struct astnode **array;
                         size_t max_count;
                         size_t count;
-                } block;
+                } node_compound;
 
                 struct {
                         double floatValue;
@@ -119,6 +128,13 @@ struct astnode {
                         struct astnode *value;
                 } resolve;
 
+                // Stuff for semantic analysis
+
+                struct {
+                        char *identifier;
+                        struct astdtype *type;
+                        struct astnode *declaration;
+                } variable_symbol;
         };
 };
 
@@ -177,7 +193,7 @@ struct astdtype *astdtype_void();
 
 struct astdtype *astdtype_custom(char *);
 
-/* Recursively free a node */
+/* Free a node recursively */
 void astnode_free(struct astnode *);
 
 struct astnode *astnode_generic(enum nodetype, size_t, struct astnode *);
@@ -186,11 +202,17 @@ struct astnode *astnode_nothing(size_t, struct astnode *);
 
 struct astnode *astnode_empty_program();
 
-struct astnode *astnode_empty_block(size_t, struct astnode *);
+struct astnode *astnode_empty_compound(size_t, struct astnode *);
 
-_Bool astnode_push_block(struct astnode *, struct astnode *);
+_Bool astnode_push_compound(struct astnode *, struct astnode *);
+
+void *astnode_compound_foreach(struct astnode *, void *, void *(*)(void *, struct astnode *));
+
+void astnode_free_compound(struct astnode *);
 
 void astnode_free_block(struct astnode *);
+
+struct astnode *astnode_empty_block(size_t, struct astnode *);
 
 struct astnode *astnode_float_literal(size_t, struct astnode *, double);
 
@@ -213,5 +235,9 @@ struct astnode *astnode_function_definition(size_t, struct astnode *, char *, st
 struct astnode *astnode_function_call(size_t, struct astnode *, char *, struct astnode *);
 
 struct astnode *astnode_resolve(size_t, struct astnode *, struct astnode *);
+
+// Semantic nodes --
+
+struct astnode *astnode_variable_symbol(struct astnode *, char *, struct astdtype *, struct astnode *);
 
 #endif
