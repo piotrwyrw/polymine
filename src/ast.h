@@ -14,7 +14,8 @@ enum nodetype : uint8_t {
         NODE_NOTHING, // Warning: This is NOT the same as UNDEFINED !! Something along the lines on NOP
         NODE_BLOCK,
         NODE_PROGRAM,
-        NODE_NUMBER_LITERAL,
+        NODE_FLOAT_LITERAL,
+        NODE_INTEGER_LITERAL,
         NODE_STRING_LITERAL,
         NODE_BINARY_OP,
         NODE_VARIABLE_DECL,
@@ -57,8 +58,12 @@ struct astnode {
                 } block;
 
                 struct {
-                        double value;
-                } number_literal;
+                        double floatValue;
+                } float_literal;
+
+                struct {
+                        int integerValue;
+                } integer_literal;
 
                 struct {
                         size_t length;
@@ -116,7 +121,11 @@ struct astnode {
 enum builtin_type : uint8_t {
         BUILTIN_UNDEFINED = 0,
         BUILTIN_CHAR,
-        BUILTIN_NUMBER,
+        BUILTIN_DOUBLE,
+        BUILTIN_INT8,
+        BUILTIN_INT16,
+        BUILTIN_INT32,
+        BUILTIN_INT64,
         BUILTIN_GENERIC_BYTE
 };
 
@@ -179,7 +188,9 @@ void astnode_free_block(struct astnode *);
 
 struct astnode *astnode_generic(enum nodetype, size_t);
 
-struct astnode *astnode_number_literal(size_t, double);
+struct astnode *astnode_float_literal(size_t, double);
+
+struct astnode *astnode_integer_literal(size_t, int);
 
 struct astnode *astnode_string_literal(size_t, char *);
 

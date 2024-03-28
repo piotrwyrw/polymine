@@ -7,9 +7,11 @@
 
 #include "ast.h"
 
-double char_to_digit(char c);
+int char_to_digit(char c);
 
-double string_to_number(char *);
+double string_to_float(char *);
+
+int string_to_integer(char *);
 
 char *repeat(char, size_t);
 

@@ -649,18 +649,23 @@ struct astnode *parse_function_call(struct parser *p)
 struct astnode *parse_number(struct parser *p)
 {
         if (p->current.type != LX_INTEGER && p->current.type != LX_DECIMAL) {
-                printf("Could not parse number. Expected literal, got %s (\"%s\") on line %ld.\n",
+                printf("Could not parse number. Expected integer literal or float literal, got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
         }
 
-        double d = string_to_number(p->current.value);
+        enum lxtype type = p->current.type;
 
-        struct astnode *num = astnode_number_literal(p->line, d);
+        struct astnode *n;
+
+        if (type == LX_INTEGER)
+                n = astnode_integer_literal(p->line, string_to_integer(p->current.value));
+        else
+                n = astnode_float_literal(p->line, string_to_float(p->current.value));
 
         parser_advance(p);
 
-        return num;
+        return n;
 }
 
 struct astnode *parse_string_literal(struct parser *p)

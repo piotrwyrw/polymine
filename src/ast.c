@@ -11,7 +11,11 @@ enum builtin_type builtin_from_string(char *str)
 
         RETURN_IF("char", BUILTIN_CHAR)
         RETURN_IF("byte", BUILTIN_GENERIC_BYTE)
-        RETURN_IF("number", BUILTIN_NUMBER)
+        RETURN_IF("double", BUILTIN_DOUBLE)
+        RETURN_IF("int8", BUILTIN_INT8)
+        RETURN_IF("int16", BUILTIN_INT16)
+        RETURN_IF("int32", BUILTIN_INT32)
+        RETURN_IF("int64", BUILTIN_INT64)
 
 #undef RETURN_IF
 
@@ -23,7 +27,11 @@ const char *builtin_string(enum builtin_type type)
 #define AUTO(type) case type: return #type;
         switch (type) {
                 AUTO(BUILTIN_UNDEFINED)
-                AUTO(BUILTIN_NUMBER)
+                AUTO(BUILTIN_DOUBLE)
+                AUTO(BUILTIN_INT8)
+                AUTO(BUILTIN_INT16)
+                AUTO(BUILTIN_INT32)
+                AUTO(BUILTIN_INT64)
                 AUTO(BUILTIN_GENERIC_BYTE)
                 AUTO(BUILTIN_CHAR)
         }
@@ -86,7 +94,8 @@ const char *nodetype_string(enum nodetype type)
 #define AUTO(type) case type: return #type;
                 AUTO(NODE_BLOCK)
                 AUTO(NODE_PROGRAM)
-                AUTO(NODE_NUMBER_LITERAL)
+                AUTO(NODE_FLOAT_LITERAL)
+                AUTO(NODE_INTEGER_LITERAL)
                 AUTO(NODE_STRING_LITERAL)
                 AUTO(NODE_BINARY_OP)
                 AUTO(NODE_VARIABLE_DECL)
@@ -240,10 +249,17 @@ void astnode_free_block(struct astnode *block)
         free(block);
 }
 
-struct astnode *astnode_number_literal(size_t line, double value)
+struct astnode *astnode_float_literal(size_t line, double value)
 {
-        struct astnode *node = astnode_generic(NODE_NUMBER_LITERAL, line);
-        node->number_literal.value = value;
+        struct astnode *node = astnode_generic(NODE_FLOAT_LITERAL, line);
+        node->float_literal.floatValue = value;
+        return node;
+}
+
+struct astnode *astnode_integer_literal(size_t line, int value)
+{
+        struct astnode *node = astnode_generic(NODE_INTEGER_LITERAL, line);
+        node->integer_literal.integerValue = value;
         return node;
 }
 

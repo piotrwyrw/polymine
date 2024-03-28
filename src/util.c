@@ -7,12 +7,12 @@
 #include <string.h>
 #include <math.h>
 
-double char_to_digit(char c)
+int char_to_digit(char c)
 {
-        return (double) (c - '0');
+        return c - '0';
 }
 
-double string_to_number(char *str)
+double string_to_float(char *str)
 {
         size_t len = strlen(str);
         double output = 0.0;
@@ -30,10 +30,21 @@ double string_to_number(char *str)
                 }
 
                 if (dIdx == 0)
-                        output = output * 10 + char_to_digit(c);
+                        output = output * 10 + (double) char_to_digit(c);
                 else
-                        output = output + (char_to_digit(c) / pow(10, (double) dIdx++));
+                        output = output + ((double) char_to_digit(c) / pow(10, (double) dIdx++));
         }
+
+        return output;
+}
+
+int string_to_integer(char *str)
+{
+        size_t len = strlen(str);
+        int output = 0;
+
+        for (size_t i = 0; i < len; i++)
+                output = output * 10 + char_to_digit(str[i]);
 
         return output;
 }
@@ -78,8 +89,11 @@ void ast_print(struct astnode *node, size_t level)
                 INDENTED("Program:\n");
                         ast_print(node->program.block, level + 1);
                         break;
-                case NODE_NUMBER_LITERAL:
-                INDENTED("Number Literal: %f\n", node->number_literal.value);
+                case NODE_INTEGER_LITERAL:
+                INDENTED("Integer Literal: %d\n", node->integer_literal.integerValue);
+                        break;
+                case NODE_FLOAT_LITERAL:
+                INDENTED("Float Literal: %f\n", node->float_literal.floatValue);
                         break;
 
                 case NODE_STRING_LITERAL:
@@ -127,7 +141,7 @@ void ast_print(struct astnode *node, size_t level)
                         break;
 
                 case NODE_FUNCTION_DEFINITION:
-                        INDENTED("Function Definition '%s' of ", node->function_def.identifier);
+                INDENTED("Function Definition '%s' of ", node->function_def.identifier);
                         type_print(node->function_def.type);
                         printf(":\n");
                         ast_print(node->function_def.params, level + 1);
