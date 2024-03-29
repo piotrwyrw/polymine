@@ -8,4 +8,6 @@ add_executable(polymine src/main.c src/ast.c src/io.c src/lexer.c src/parser.c
         src/syntax.h
         src/semantics.h
         src/semantics.c
+        src/semutil.h
+        src/semutil.c
 )

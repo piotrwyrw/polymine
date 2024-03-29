@@ -2,6 +2,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "syntax.h"
+#include "semutil.h"
 #include "util.h"
 #include "semantics.h"
 
@@ -23,12 +24,19 @@ int main(void)
 
         struct astnode *node = parse(&p);
 
-        if (node) {
-                analyze_program(node);
-                ast_print(node, 0);
-                astnode_free(node);
-        }
+        if (!node)
+                goto exit;
 
+        struct semantics sem;
+        semantics_init(&sem);
+
+        analyze_program(&sem, node);
+        ast_print(node, 0);
+        astnode_free(node);
+
+        semantics_free(&sem);
+
+        exit:
         parser_free(&p);
 
         input_free(&handle);
