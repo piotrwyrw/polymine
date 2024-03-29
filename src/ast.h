@@ -28,7 +28,7 @@ enum nodetype : uint8_t {
         NODE_RESOLVE,
 
         // Semantic stuff
-        NODE_VARIABLE_SYMBOL
+        NODE_SYMBOL
 };
 
 const char *nodetype_string(enum nodetype);
@@ -45,6 +45,14 @@ enum binaryop : uint8_t {
 enum binaryop bop_from_lxtype(enum lxtype);
 
 const char *binaryop_string(enum binaryop);
+
+enum symbol_type {
+        SYMBOL_VARIABLE,
+        SYMBOL_FUNCTION,
+        SYMBOL_TYPEDEF
+};
+
+char *symbol_type_humanstr(enum symbol_type);
 
 struct astdtype;
 
@@ -131,10 +139,11 @@ struct astnode {
                 // Stuff for semantic analysis
 
                 struct {
+                        enum symbol_type symtype;
                         char *identifier;
                         struct astdtype *type;
-                        struct astnode *declaration;
-                } variable_symbol;
+                        struct astnode *node;
+                } symbol;
         };
 };
 
@@ -238,6 +247,6 @@ struct astnode *astnode_resolve(size_t, struct astnode *, struct astnode *);
 
 // Semantic nodes --
 
-struct astnode *astnode_variable_symbol(struct astnode *, char *, struct astdtype *, struct astnode *);
+struct astnode *astnode_symbol(struct astnode *, enum symbol_type, char *, struct astdtype *, struct astnode *);
 
 #endif

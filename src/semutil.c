@@ -23,12 +23,12 @@ void semantics_free(struct semantics *sem)
         astdtype_free(sem->_double);
 }
 
-static struct astnode *filter_variable(char *id, struct astnode *node)
+static struct astnode *filter_symbol(char *id, struct astnode *node)
 {
-        if (node->type != NODE_VARIABLE_SYMBOL)
+        if (node->type != NODE_SYMBOL)
                 return NULL;
 
-        if (strcmp(node->variable_symbol.identifier, id) != 0)
+        if (strcmp(node->symbol.identifier, id) != 0)
                 return NULL;
 
         return node;
@@ -46,7 +46,7 @@ struct astnode *find_symbol(char *id, struct astnode *block)
         struct astnode *symbol;
 
         while (b != NULL) {
-                if ((symbol = astnode_compound_foreach(block->block.symbols, id, (void *) filter_variable)))
+                if ((symbol = astnode_compound_foreach(block->block.symbols, id, (void *) filter_symbol)))
                         return symbol;
 
                 b = b->super;

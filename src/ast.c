@@ -104,6 +104,7 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_VARIABLE_ASSIGNMENT)
                 AUTO(NODE_FUNCTION_DEFINITION)
                 AUTO(NODE_FUNCTION_CALL)
+                AUTO(NODE_SYMBOL)
 #undef AUTO
                 default:
                         return "[???]";
@@ -137,6 +138,20 @@ const char *binaryop_string(enum binaryop op)
                 AUTO(BOP_DIV)
         }
 #undef AUTO
+}
+
+char *symbol_type_humanstr(enum symbol_type type)
+{
+        switch (type) {
+                case SYMBOL_FUNCTION:
+                        return "function";
+                case SYMBOL_VARIABLE:
+                        return "variable";
+                case SYMBOL_TYPEDEF:
+                        return "type";
+                default:
+                        return "symbol of unknown type";
+        }
 }
 
 void astnode_free(struct astnode *node)
@@ -256,7 +271,7 @@ void *astnode_compound_foreach(struct astnode *compound, void *param, void *(*fu
 {
         void *result;
 
-        for (size_t i = 0; i < compound->node_compound.count; i ++) {
+        for (size_t i = 0; i < compound->node_compound.count; i++) {
                 result = fun(param, compound->node_compound.array[i]);
                 if (result)
                         return result;
@@ -370,11 +385,12 @@ struct astnode *astnode_resolve(size_t line, struct astnode *block, struct astno
         return node;
 }
 
-struct astnode *astnode_variable_symbol(struct astnode *block, char *id, struct astdtype *type, struct astnode *declaration)
+struct astnode *astnode_symbol(struct astnode *block, enum symbol_type t, char *id, struct astdtype *type, struct astnode *orig)
 {
-        struct astnode *node = astnode_generic(NODE_VARIABLE_SYMBOL, block->line, block);
-        node->variable_symbol.identifier = id;
-        node->variable_symbol.type = type;
-        node->variable_symbol.declaration = declaration;
+        struct astnode *node = astnode_generic(NODE_SYMBOL, block->line, block);
+        node->symbol.symtype = t;
+        node->symbol.identifier = id;
+        node->symbol.type = type;
+        node->symbol.node = orig;
         return node;
 }
