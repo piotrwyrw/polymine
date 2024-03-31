@@ -149,6 +149,7 @@ void ast_print(struct astnode *node, size_t level)
                         type_print(node->function_def.type);
                         printf(":\n");
                         ast_print(node->function_def.params, level + 1);
+                        ast_print(node->function_def.capture, level + 1);
                         ast_print(node->function_def.block, level + 1);
                         break;
 

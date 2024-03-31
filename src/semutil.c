@@ -59,7 +59,6 @@ struct astnode *find_symbol(char *id, struct astnode *block)
         return custom_traverse(id, (void *) filter_symbol, block, TRAVERSE_SYMBOLS);
 }
 
-// TODO THIS NEEDS FIXING !!!
 struct astnode *find_enclosing_function(struct astnode *block)
 {
         if (block->type != NODE_BLOCK) {

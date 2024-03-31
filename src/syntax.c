@@ -14,8 +14,10 @@ struct astnode *parse(struct parser *p)
 
         program->program.block = parse_block_advanced(p, false);
 
-        if (!program->program.block)
+        if (!program->program.block) {
+                free(program);
                 return NULL;
+        }
 
         program->program.block->holder = program;
 
@@ -315,7 +317,8 @@ struct astnode *parse_function_parameters(struct parser *p)
                         return NULL;
                 }
 
-                astnode_push_compound(params->block.nodes, astnode_declaration(p->line, p->block, false, id, type, NULL));
+                astnode_push_compound(params->block.nodes,
+                                      astnode_declaration(p->line, p->block, false, id, type, NULL));
 
                 free(id);
 
@@ -394,11 +397,65 @@ struct astnode *parse_function_definition(struct parser *p)
                 return NULL;
         }
 
+        struct astnode *capture = NULL;
+
+        if (p->current.type == LX_IDEN) {
+                if (strcmp(p->current.value, "captures") != 0) {
+                        printf("Expected 'captures' followed by a capture group, or the function block after ther type. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        free(id);
+                        astnode_free(params);
+                        astdtype_free(type);
+                        return NULL;
+                }
+
+                parser_advance(p);
+
+                capture = astnode_empty_block(p->line, p->block);
+
+                while (p->current.type != LX_UNDEFINED) {
+                        if (p->current.type != LX_IDEN) {
+                                printf("Expected identifier after the captures keyword. Got %s (\"%s\") on line %ld.\n",
+                                       lxtype_string(p->current.type), p->current.value, p->line);
+                                free(id);
+                                astnode_free(params);
+                                astnode_free(capture);
+                                astdtype_free(type);
+                                return NULL;
+                        }
+
+                        astnode_push_compound(capture->block.nodes,
+                                              astnode_variable(p->line, p->block, p->current.value));
+
+                        parser_advance(p);
+
+                        if (p->current.type == LX_COMMA)
+                                parser_advance(p);
+
+                        if (p->current.type == LX_LBRACE)
+                                break;
+                        else if (p->current.type == LX_IDEN)
+                                continue;
+
+                        if (p->current.type != LX_COMMA && p->current.type != LX_LBRACE) {
+                                printf("Expected ',' and more capture variables, or the function block. Got %s (\"%s\") on line %ld.\n",
+                                       lxtype_string(p->current.type), p->current.value, p->line);
+                                free(id);
+                                astnode_free(params);
+                                astnode_free(capture);
+                                astdtype_free(type);
+                                return NULL;
+                        }
+                }
+        }
+
         if (p->current.type != LX_LBRACE) {
                 printf("Expected '{' after function parameter block. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 free(id);
                 astnode_free(params);
+                astnode_free(capture);
+                astdtype_free(type);
                 return NULL;
         }
 
@@ -407,13 +464,18 @@ struct astnode *parse_function_definition(struct parser *p)
         if (!block) {
                 free(id);
                 astnode_free(params);
+                astnode_free(capture);
+                astdtype_free(type);
                 return NULL;
         }
 
-        struct astnode *fdef = astnode_function_definition(line, p->block, id, params, type, block);
+        struct astnode *fdef = astnode_function_definition(line, p->block, id, params, type, capture, block);
 
         fdef->function_def.params->holder = fdef;
         fdef->function_def.block->holder = fdef;
+
+        if (fdef->function_def.capture)
+                fdef->function_def.capture->holder = fdef;
 
         free(id);
 

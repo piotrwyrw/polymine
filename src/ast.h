@@ -124,6 +124,7 @@ struct astnode {
                         char *identifier;
                         struct astnode *params; // This is a block too!
                         struct astdtype *type;
+                        struct astnode *capture; // And so is this!
                         struct astnode *block;
                 } function_def;
 
@@ -240,7 +241,7 @@ struct astnode *astnode_variable(size_t, struct astnode *, char *);
 
 struct astnode *astnode_assignment(size_t, struct astnode *, char *, struct astnode *);
 
-struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *);
+struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *, struct astnode *);
 
 struct astnode *astnode_function_call(size_t, struct astnode *, char *, struct astnode *);
 

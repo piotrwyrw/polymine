@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+// TODO Analyze capture groups, introduce captured variables as function parameters
+
 _Bool analyze_program(struct semantics *sem, struct astnode *program)
 {
         return analyze_any(sem, program->program.block);
@@ -59,7 +61,8 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
         }
 
         if (types_compatible(decl->declaration.type, exprType)) {
-                printf("The effective type of the expression is not compatible with the variable declaration type on line %ld.\n", decl->line);
+                printf("The effective type of the expression is not compatible with the variable declaration type on line %ld.\n",
+                       decl->line);
                 return false;
         }
 
@@ -84,6 +87,13 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         if (symbol_conflict(fdef->function_def.identifier, fdef))
                 return false;
 
+        // Check if the function is allowed to have a capture group
+        if (!find_enclosing_function(fdef->super) && fdef->function_def.capture) {
+                printf("The function \"%s\" is not nested, and is therefore not allowed to have a capture group. Error on line %ld.\n",
+                       fdef->function_def.identifier, fdef->line);
+                return false;
+        }
+
         astnode_compound_foreach(fdef->function_def.params->block.nodes, fdef, (void *) declare_param_variable);
 
         if (!analyze_any(sem, fdef->function_def.block))
@@ -105,12 +115,14 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
                 return false;
 
         if (!(function = find_enclosing_function(res->super))) {
-                printf("A resolve statement may only be placed inside of a function. Violation on line %ld.\n", res->line);
+                printf("A resolve statement may only be placed inside of a function. Violation on line %ld.\n",
+                       res->line);
                 return false;
         }
 
         if (!types_compatible(function->function_def.type, type)) {
-                printf("The resolve statement expression is not compatible with the function type on line %ld.\n", res->line);
+                printf("The resolve statement expression is not compatible with the function type on line %ld.\n",
+                       res->line);
                 return false;
         }
 
