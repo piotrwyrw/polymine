@@ -47,8 +47,6 @@ int main(void)
         semantics_free(&sem);
 
         exit:
-        astnode_free(p.types);
-
         parser_free(&p);
 
         input_free(&handle);

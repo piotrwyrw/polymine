@@ -39,9 +39,11 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                         return analyze_expression(sem, node) != NULL;
                 case NODE_RESOLVE:
                         return analyze_resolve(sem, node);
+                case NODE_NOTHING:
+                        return true;
                 default:
                         printf("Unknown node type passed to analyze_any(..): %s\n", nodetype_string(node->type));
-                        return true;
+                        return false;
         }
 }
 
@@ -94,10 +96,10 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                 return false;
         }
 
+        astnode_compound_foreach(fdef->function_def.params->block.nodes, fdef, (void *) declare_param_variable);
+
         if (fdef->function_def.capture)
                 analyze_capture_group(sem, fdef);
-
-        astnode_compound_foreach(fdef->function_def.params->block.nodes, fdef, (void *) declare_param_variable);
 
         if (!analyze_any(sem, fdef->function_def.block))
                 return false;
@@ -117,14 +119,14 @@ static void *analyze_capture_variable(struct astnode *fdef, struct astnode *var)
                 printf("The capture group variable \"%s\" is undefined. Error on line %ld.\n",
                        var->declaration.identifier,
                        var->line);
-                return NULL;
+                return var;
         }
 
         // The function parameters have priority. See if our capture group variable naming conflicts with any params
         if (find_symbol_shallow(var->declaration.identifier, fdef->function_def.block)) {
                 printf("Capture group variable \"%s\" conflicts with a function parameter of the same name. Error on line %ld.\n",
                        var->declaration.identifier, var->line);
-                return NULL;
+                return var;
         }
 
         var->declaration.type = symbol->symbol.type;

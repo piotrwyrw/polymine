@@ -22,6 +22,7 @@ void parser_free(struct parser *p)
 {
         lxtok_free(&p->current);
         lxtok_free(&p->next);
+        astnode_free(p->types);
 }
 
 void parser_advance(struct parser *p)

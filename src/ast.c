@@ -42,7 +42,8 @@ void astdtype_free(struct astdtype *adt)
 {
         switch (adt->type) {
                 case ASTDTYPE_POINTER:
-                        astdtype_free(adt->pointer.to);
+                        // DON'T!
+//                        astdtype_free(adt->pointer.to);
                         break;
                 case ASTDTYPE_CUSTOM:
                         free(adt->custom.name);

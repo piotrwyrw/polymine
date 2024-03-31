@@ -312,7 +312,6 @@ struct astnode *parse_function_parameters(struct parser *p)
 
                 if (!type) {
                         free(id);
-                        astdtype_free(type);
                         astnode_free(params);
                         return NULL;
                 }
@@ -384,6 +383,7 @@ struct astnode *parse_function_definition(struct parser *p)
                 printf("Expected 'of' after function parameter block. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 free(id);
+                astnode_free(params);
                 return NULL;
         }
 
@@ -405,7 +405,6 @@ struct astnode *parse_function_definition(struct parser *p)
                                lxtype_string(p->current.type), p->current.value, p->line);
                         free(id);
                         astnode_free(params);
-                        astdtype_free(type);
                         return NULL;
                 }
 
@@ -420,7 +419,6 @@ struct astnode *parse_function_definition(struct parser *p)
                                 free(id);
                                 astnode_free(params);
                                 astnode_free(capture);
-                                astdtype_free(type);
                                 return NULL;
                         }
 
@@ -443,7 +441,6 @@ struct astnode *parse_function_definition(struct parser *p)
                                 free(id);
                                 astnode_free(params);
                                 astnode_free(capture);
-                                astdtype_free(type);
                                 return NULL;
                         }
                 }
@@ -455,7 +452,6 @@ struct astnode *parse_function_definition(struct parser *p)
                 free(id);
                 astnode_free(params);
                 astnode_free(capture);
-                astdtype_free(type);
                 return NULL;
         }
 
@@ -465,7 +461,6 @@ struct astnode *parse_function_definition(struct parser *p)
                 free(id);
                 astnode_free(params);
                 astnode_free(capture);
-                astdtype_free(type);
                 return NULL;
         }
 
@@ -551,7 +546,6 @@ struct astdtype *parse_type(struct parser *p)
                 if (p->current.type != LX_RPAREN) {
                         printf("Expected ')' after enclosed type. Got %s (\"%s\") on line %ld.\n",
                                lxtype_string(p->current.type), p->current.value, p->line);
-                        astdtype_free(enclosed);
                         return NULL;
                 }
 

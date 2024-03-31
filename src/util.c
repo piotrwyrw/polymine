@@ -173,6 +173,11 @@ void ast_print(struct astnode *node, size_t level)
 
 void type_print(struct astdtype *type)
 {
+        if (!type) {
+                printf("Unknown type");
+                return;
+        }
+
         switch (type->type) {
                 case ASTDTYPE_CUSTOM:
                         printf("%s", type->custom.name);
