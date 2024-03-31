@@ -94,6 +94,9 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                 return false;
         }
 
+        if (fdef->function_def.capture)
+                analyze_capture_group(sem, fdef);
+
         astnode_compound_foreach(fdef->function_def.params->block.nodes, fdef, (void *) declare_param_variable);
 
         if (!analyze_any(sem, fdef->function_def.block))
@@ -104,6 +107,36 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                                   fdef));
 
         return true;
+}
+
+static void *analyze_capture_variable(struct astnode *fdef, struct astnode *var)
+{
+        struct astnode *symbol;
+
+        if (!(symbol = find_symbol(var->declaration.identifier, fdef->super))) {
+                printf("The capture group variable \"%s\" is undefined. Error on line %ld.\n",
+                       var->declaration.identifier,
+                       var->line);
+                return NULL;
+        }
+
+        // The function parameters have priority. See if our capture group variable naming conflicts with any params
+        if (find_symbol_shallow(var->declaration.identifier, fdef->function_def.block)) {
+                printf("Capture group variable \"%s\" conflicts with a function parameter of the same name. Error on line %ld.\n",
+                       var->declaration.identifier, var->line);
+                return NULL;
+        }
+
+        var->declaration.type = symbol->symbol.type;
+        declare_param_variable(fdef, var);
+
+        return NULL;
+}
+
+_Bool analyze_capture_group(struct semantics *sem, struct astnode *fdef)
+{
+        return astnode_compound_foreach(fdef->function_def.capture->block.nodes, fdef,
+                                        (void *) analyze_capture_variable) == NULL;
 }
 
 _Bool analyze_resolve(struct semantics *sem, struct astnode *res)

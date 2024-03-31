@@ -45,7 +45,8 @@ struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct as
         struct astnode *node;
 
         while (b != NULL) {
-                if ((node = astnode_compound_foreach((domain == TRAVERSE_SYMBOLS) ? b->block.symbols : b->block.nodes, param, callback)))
+                if ((node = astnode_compound_foreach((domain == TRAVERSE_SYMBOLS) ? b->block.symbols : b->block.nodes,
+                                                     param, callback)))
                         return node;
 
                 b = b->super;
@@ -57,6 +58,11 @@ struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct as
 struct astnode *find_symbol(char *id, struct astnode *block)
 {
         return custom_traverse(id, (void *) filter_symbol, block, TRAVERSE_SYMBOLS);
+}
+
+struct astnode *find_symbol_shallow(char *id, struct astnode *block)
+{
+        return astnode_compound_foreach(block->block.symbols, id, (void *) filter_symbol);
 }
 
 struct astnode *find_enclosing_function(struct astnode *block)
@@ -110,13 +116,13 @@ size_t quantify_type_size(struct astdtype *type)
 
         switch (type->builtin.datatype) {
                 case BUILTIN_INT64:
-                        return 64/8;
+                        return 64 / 8;
                 case BUILTIN_INT32:
-                        return 32/8;
+                        return 32 / 8;
                 case BUILTIN_INT16:
-                        return 16/8;
+                        return 16 / 8;
                 case BUILTIN_INT8:
-                        return 8/8;
+                        return 8 / 8;
                 case BUILTIN_CHAR:
                 case BUILTIN_GENERIC_BYTE:
                         return sizeof(char);
@@ -156,15 +162,15 @@ struct astdtype *required_type(struct astdtype *a, struct astdtype *b)
 
 struct astdtype *required_type_integer(struct semantics *sem, int value)
 {
-        size_t size =  ((size_t) log2((double) value) + 1) / 8;
+        size_t size = ((size_t) log2((double) value) + 1) / 8;
 
-        if (size <= 8/8)
+        if (size <= 8 / 8)
                 return sem->int8;
-        if (size <= 16/8)
+        if (size <= 16 / 8)
                 return sem->int16;
-        if (size <= 32/8)
+        if (size <= 32 / 8)
                 return sem->int32;
-        if (size <= 64/8)
+        if (size <= 64 / 8)
                 return sem->int64;
 
         return NULL;

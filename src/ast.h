@@ -26,6 +26,7 @@ enum nodetype : uint8_t {
         NODE_FUNCTION_DEFINITION,
         NODE_FUNCTION_CALL,
         NODE_RESOLVE,
+        NODE_DATA_TYPE,
 
         // Semantic stuff
         NODE_SYMBOL
@@ -246,6 +247,8 @@ struct astnode *astnode_function_definition(size_t, struct astnode *, char *, st
 struct astnode *astnode_function_call(size_t, struct astnode *, char *, struct astnode *);
 
 struct astnode *astnode_resolve(size_t, struct astnode *, struct astnode *);
+
+struct astnode *astnode_data_type(struct astdtype *);
 
 // Semantic nodes --
 

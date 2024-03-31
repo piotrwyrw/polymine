@@ -425,7 +425,7 @@ struct astnode *parse_function_definition(struct parser *p)
                         }
 
                         astnode_push_compound(capture->block.nodes,
-                                              astnode_variable(p->line, p->block, p->current.value));
+                                              astnode_declaration(p->line, p->block, true, p->current.value, NULL, NULL));
 
                         parser_advance(p);
 
@@ -512,7 +512,11 @@ struct astdtype *parse_type(struct parser *p)
 
         if (strcmp(p->current.value, "void") == 0) {
                 parser_advance(p);
-                return astdtype_void();
+
+                struct astdtype *v = astdtype_void();
+                astnode_push_compound(p->types, astnode_data_type(v));
+
+                return v;
         }
 
         identifier = p->current.value;
@@ -521,7 +525,11 @@ struct astdtype *parse_type(struct parser *p)
 
         if (bt != BUILTIN_UNDEFINED) {
                 parser_advance(p);
-                return astdtype_builtin(bt);
+
+                struct astdtype *builtin = astdtype_builtin(bt);
+                astnode_push_compound(p->types, astnode_data_type(builtin));
+
+                return builtin;
         }
 
         if (strcmp(identifier, "ptr") == 0) {
@@ -549,11 +557,15 @@ struct astdtype *parse_type(struct parser *p)
 
                 parser_advance(p);
 
-                return astdtype_pointer(enclosed);
+                struct astdtype *pointer = astdtype_pointer(enclosed);
+                astnode_push_compound(p->types, astnode_data_type(pointer));
+
+                return pointer;
         }
 
         struct astdtype *type = astdtype_custom(identifier);
         parser_advance(p);
+
         return type;
 }
 

@@ -106,6 +106,7 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_FUNCTION_CALL)
                 AUTO(NODE_SYMBOL)
                 AUTO(NODE_RESOLVE)
+                AUTO(NODE_DATA_TYPE)
 #undef AUTO
                 default:
                         return "Unknown Node";
@@ -180,7 +181,7 @@ void astnode_free(struct astnode *node)
                 case NODE_VARIABLE_DECL:
                         astnode_free(node->declaration.value);
                         free(node->declaration.identifier);
-                        astdtype_free(node->declaration.type);
+//                        astdtype_free(node->declaration.type);
                         break;
                 case NODE_POINTER:
                         astnode_free(node->pointer.target);
@@ -197,7 +198,7 @@ void astnode_free(struct astnode *node)
                         astnode_free(node->function_def.params);
                         astnode_free(node->function_def.block);
                         astnode_free(node->function_def.capture);
-                        astdtype_free(node->function_def.type);
+//                        astdtype_free(node->function_def.type);
                         break;
                 case NODE_FUNCTION_CALL:
                         free(node->function_call.identifier);
@@ -205,6 +206,9 @@ void astnode_free(struct astnode *node)
                         break;
                 case NODE_RESOLVE:
                         astnode_free(node->resolve.value);
+                        break;
+                case NODE_DATA_TYPE:
+                        astdtype_free(node->data_type.adt);
                         break;
                 default:
                         break;
@@ -386,6 +390,13 @@ struct astnode *astnode_resolve(size_t line, struct astnode *block, struct astno
         struct astnode *node = astnode_generic(NODE_RESOLVE, line, block);
         node->resolve.value = value;
         node->resolve.function = NULL;
+        return node;
+}
+
+struct astnode *astnode_data_type(struct astdtype *type)
+{
+        struct astnode *node = astnode_generic(NODE_DATA_TYPE, 0, NULL);
+        node->data_type.adt = type;
         return node;
 }
 

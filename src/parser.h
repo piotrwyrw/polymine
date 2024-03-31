@@ -10,6 +10,7 @@ struct parser {
 	struct lxtok next;
 	struct lexer *lx;
         struct astnode *block;
+        struct astnode *types; // A compound node
 	size_t line;
 };
 

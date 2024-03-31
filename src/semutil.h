@@ -26,6 +26,8 @@ struct astnode *custom_traverse(void *, void *(*)(void *, struct astnode *), str
 
 struct astnode *find_symbol(char *, struct astnode *);
 
+struct astnode *find_symbol_shallow(char *, struct astnode *);
+
 struct astnode *find_enclosing_function(struct astnode *);
 
 void put_symbol(struct astnode *, struct astnode *);
