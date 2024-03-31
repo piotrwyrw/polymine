@@ -18,7 +18,7 @@ void print_license()
 
 int main(void)
 {
-        print_license();
+//        print_license();
 
         struct input_handle handle = empty_input_handle;
         if (!input_read("input.int", &handle)) {

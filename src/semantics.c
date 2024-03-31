@@ -4,13 +4,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-// ---------
-// TODO Recurse through all blocks and scan stuff
-// TODO FUNCTIONS !! Check if they're re-defined, handle nesting (?), allow for variable shadowing
-// TODO Also, declare function variables as symbols in the scope!
-// TODO Do some basic type correctness checking
-// ---------
-
 _Bool analyze_program(struct semantics *sem, struct astnode *program)
 {
         return analyze_any(sem, program->program.block);
@@ -42,6 +35,8 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                 case NODE_FLOAT_LITERAL:
                 case NODE_VARIABLE_USE:
                         return analyze_expression(sem, node) != NULL;
+                case NODE_RESOLVE:
+                        return analyze_resolve(sem, node);
                 default:
                         printf("Unknown node type passed to analyze_any(..): %s\n", nodetype_string(node->type));
                         return true;
@@ -50,14 +45,8 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
 
 _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
 {
-        struct astnode *symbol;
-
-        if ((symbol = find_symbol(decl->declaration.identifier, decl->super))) {
-                printf("Redefinition of symbol '%s' on line %ld. Original definition on line %ld as a %s.\n",
-                       decl->declaration.identifier, decl->line, symbol->symbol.node->line,
-                       symbol_type_humanstr(symbol->symbol.symtype));
+        if (symbol_conflict(decl->declaration.identifier, decl))
                 return false;
-        }
 
         if (!decl->declaration.value)
                 goto put_and_exit;
@@ -69,14 +58,8 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
                 return false;
         }
 
-        struct astdtype *req = required_type(exprType, decl->declaration.type);
-
-        size_t expressionSize = quantify_type_size(req);
-        size_t variableSize = quantify_type_size(decl->declaration.type);
-
-        if (expressionSize > variableSize) {
-                printf("The type size %ld of variable '%s' is too small to accommodate an expression that requires at least %ld bytes.\n",
-                       variableSize, decl->declaration.identifier, expressionSize);
+        if (types_compatible(decl->declaration.type, exprType)) {
+                printf("The effective type of the expression is not compatible with the variable declaration type on line %ld.\n", decl->line);
                 return false;
         }
 
@@ -88,7 +71,7 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
         return true;
 }
 
-void *declare_param_variable(struct astnode *fdef, struct astnode *variable)
+static void *declare_param_variable(struct astnode *fdef, struct astnode *variable)
 {
         put_symbol(fdef->function_def.block,
                    astnode_symbol(fdef->function_def.block, SYMBOL_VARIABLE, variable->declaration.identifier,
@@ -98,14 +81,8 @@ void *declare_param_variable(struct astnode *fdef, struct astnode *variable)
 
 _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
 {
-        struct astnode *symbol;
-
-        if ((symbol = find_symbol(fdef->function_def.identifier, fdef->super))) {
-                printf("The symbol '%s' is already defined - Redefinition attempted on line %ld. Previous definition on line %ld as a %s.\n",
-                       fdef->function_def.identifier, fdef->line, symbol->line,
-                       symbol_type_humanstr(symbol->symbol.symtype));
+        if (symbol_conflict(fdef->function_def.identifier, fdef))
                 return false;
-        }
 
         astnode_compound_foreach(fdef->function_def.params->block.nodes, fdef, (void *) declare_param_variable);
 
@@ -115,6 +92,29 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         put_symbol(fdef->super,
                    astnode_symbol(fdef->super, SYMBOL_FUNCTION, fdef->function_def.identifier, fdef->function_def.type,
                                   fdef));
+
+        return true;
+}
+
+_Bool analyze_resolve(struct semantics *sem, struct astnode *res)
+{
+        struct astdtype *type = analyze_expression(sem, res->resolve.value);
+        struct astnode *function;
+
+        if (!type)
+                return false;
+
+        if (!(function = find_enclosing_function(res->super))) {
+                printf("A resolve statement may only be placed inside of a function. Violation on line %ld.\n", res->line);
+                return false;
+        }
+
+        if (!types_compatible(function->function_def.type, type)) {
+                printf("The resolve statement expression is not compatible with the function type on line %ld.\n", res->line);
+                return false;
+        }
+
+        res->resolve.function = function->function_def.identifier;
 
         return true;
 }

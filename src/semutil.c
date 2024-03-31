@@ -34,20 +34,44 @@ static struct astnode *filter_symbol(char *id, struct astnode *node)
         return node;
 }
 
-struct astnode *find_symbol(char *id, struct astnode *block)
+struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct astnode *), struct astnode *block, enum traversal_domain domain)
 {
         if (block->type != NODE_BLOCK) {
-                printf("find_symbol(%s): 'block' is a %s!\n", id, nodetype_string(block->type));
+                printf("custom_traverse(..): Block is a %s!\n", nodetype_string(block->type));
                 return NULL;
         }
 
-        // Traverse the tree upwards to find the first block that contains said symbol
         struct astnode *b = block;
-        struct astnode *symbol;
+        struct astnode *node;
 
         while (b != NULL) {
-                if ((symbol = astnode_compound_foreach(block->block.symbols, id, (void *) filter_symbol)))
-                        return symbol;
+                if ((node = astnode_compound_foreach((domain == TRAVERSE_SYMBOLS) ? b->block.symbols : b->block.nodes, param, callback)))
+                        return node;
+
+                b = b->super;
+        }
+
+        return NULL;
+}
+
+struct astnode *find_symbol(char *id, struct astnode *block)
+{
+        return custom_traverse(id, (void *) filter_symbol, block, TRAVERSE_SYMBOLS);
+}
+
+// TODO THIS NEEDS FIXING !!!
+struct astnode *find_enclosing_function(struct astnode *block)
+{
+        if (block->type != NODE_BLOCK) {
+                printf("find_enclosing_function(..): Block is a %s!\n", nodetype_string(block->type));
+                return NULL;
+        }
+
+        struct astnode *b = block;
+
+        while (b != NULL) {
+                if (b->holder->type == NODE_FUNCTION_DEFINITION)
+                        return b->holder;
 
                 b = b->super;
         }
@@ -60,12 +84,18 @@ void put_symbol(struct astnode *block, struct astnode *symbol)
         astnode_push_compound(block->block.symbols, symbol);
 }
 
-_Bool compare_types(struct astdtype *a, struct astdtype *b)
+_Bool types_compatible(struct astdtype *destination, struct astdtype *source)
 {
-        if (a->type != ASTDTYPE_BUILTIN || b->type != ASTDTYPE_BUILTIN)
+        if (destination->type != source->type)
                 return false;
 
-        if (a->builtin.datatype == b->builtin.datatype)
+        if (destination->type == ASTDTYPE_VOID)
+                return true;
+
+        if (destination->type == ASTDTYPE_CUSTOM && strcmp(destination->custom.name, source->custom.name) == 0)
+                return true;
+
+        if (destination->type == ASTDTYPE_BUILTIN && (quantify_type_size(destination) >= quantify_type_size(source)))
                 return true;
 
         return false;
@@ -127,7 +157,7 @@ struct astdtype *required_type(struct astdtype *a, struct astdtype *b)
 
 struct astdtype *required_type_integer(struct semantics *sem, int value)
 {
-        size_t size =  (size_t) log2((double) value) + 1;
+        size_t size =  ((size_t) log2((double) value) + 1) / 8;
 
         if (size <= 8/8)
                 return sem->int8;
@@ -137,6 +167,20 @@ struct astdtype *required_type_integer(struct semantics *sem, int value)
                 return sem->int32;
         if (size <= 64/8)
                 return sem->int64;
+
+        return NULL;
+}
+
+struct astnode *symbol_conflict(char *id, struct astnode *node)
+{
+        struct astnode *symbol;
+
+        if ((symbol = find_symbol(id, node->super)) && symbol->super == node->super) {
+                printf("The symbol '%s' is already defined - Redefinition attempted on line %ld. Previous definition on line %ld as a %s.\n",
+                       id, node->line, symbol->line,
+                       symbol_type_humanstr(symbol->symbol.symtype));
+                return symbol;
+        }
 
         return NULL;
 }

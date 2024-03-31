@@ -105,9 +105,10 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_FUNCTION_DEFINITION)
                 AUTO(NODE_FUNCTION_CALL)
                 AUTO(NODE_SYMBOL)
+                AUTO(NODE_RESOLVE)
 #undef AUTO
                 default:
-                        return "[???]";
+                        return "Unknown Node";
         }
 }
 
@@ -382,6 +383,7 @@ struct astnode *astnode_resolve(size_t line, struct astnode *block, struct astno
 {
         struct astnode *node = astnode_generic(NODE_RESOLVE, line, block);
         node->resolve.value = value;
+        node->resolve.function = NULL;
         return node;
 }
 

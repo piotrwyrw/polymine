@@ -134,6 +134,7 @@ struct astnode {
 
                 struct {
                         struct astnode *value;
+                        char *function; // Managed by the semantic analysis
                 } resolve;
 
                 // Stuff for semantic analysis
