@@ -83,7 +83,7 @@ struct astnode {
                 } float_literal;
 
                 struct {
-                        int integerValue;
+                        int64_t integerValue;
                 } integer_literal;
 
                 struct {
@@ -205,6 +205,8 @@ struct astdtype *astdtype_void();
 
 struct astdtype *astdtype_custom(char *);
 
+char *astdtype_string(struct astdtype *);
+
 /* Free a node recursively */
 void astnode_free(struct astnode *);
 
@@ -228,7 +230,7 @@ struct astnode *astnode_empty_block(size_t, struct astnode *);
 
 struct astnode *astnode_float_literal(size_t, struct astnode *, double);
 
-struct astnode *astnode_integer_literal(size_t, struct astnode *, int);
+struct astnode *astnode_integer_literal(size_t, struct astnode *, int64_t);
 
 struct astnode *astnode_string_literal(size_t, struct astnode *, char *);
 

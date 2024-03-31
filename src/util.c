@@ -38,10 +38,10 @@ double string_to_float(char *str)
         return output;
 }
 
-int string_to_integer(char *str)
+int64_t string_to_integer(char *str)
 {
         size_t len = strlen(str);
-        int output = 0;
+        int64_t output = 0;
 
         for (size_t i = 0; i < len; i++)
                 output = output * 10 + char_to_digit(str[i]);
@@ -149,7 +149,8 @@ void ast_print(struct astnode *node, size_t level)
                         type_print(node->function_def.type);
                         printf(":\n");
                         ast_print(node->function_def.params, level + 1);
-                        ast_print(node->function_def.capture, level + 1);
+                        if (node->function_def.capture)
+                                ast_print(node->function_def.capture, level + 1);
                         ast_print(node->function_def.block, level + 1);
                         break;
 

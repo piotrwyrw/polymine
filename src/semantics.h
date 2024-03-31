@@ -27,4 +27,6 @@ struct astdtype *analyze_variable_use(struct semantics *, struct astnode *);
 
 struct astdtype *analyze_atom(struct semantics *, struct astnode *);
 
+struct astdtype *analyze_function_call(struct semantics *, struct astnode *);
+
 #endif

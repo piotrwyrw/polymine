@@ -11,7 +11,7 @@ int char_to_digit(char c);
 
 double string_to_float(char *);
 
-int string_to_integer(char *);
+int64_t string_to_integer(char *);
 
 char *repeat(char, size_t);
 

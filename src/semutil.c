@@ -162,15 +162,15 @@ struct astdtype *required_type(struct astdtype *a, struct astdtype *b)
 
 struct astdtype *required_type_integer(struct semantics *sem, int value)
 {
-        size_t size = ((size_t) log2((double) value) + 1) / 8;
+        size_t size = ((size_t) log2(value) + 1);
 
-        if (size <= 8 / 8)
+        if (size <= 8)
                 return sem->int8;
-        if (size <= 16 / 8)
+        if (size <= 16)
                 return sem->int16;
-        if (size <= 32 / 8)
+        if (size <= 32)
                 return sem->int32;
-        if (size <= 64 / 8)
+        if (size <= 64)
                 return sem->int64;
 
         return NULL;

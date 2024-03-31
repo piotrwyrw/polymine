@@ -36,6 +36,7 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                 case NODE_STRING_LITERAL:
                 case NODE_FLOAT_LITERAL:
                 case NODE_VARIABLE_USE:
+                case NODE_FUNCTION_CALL:
                         return analyze_expression(sem, node) != NULL;
                 case NODE_RESOLVE:
                         return analyze_resolve(sem, node);
@@ -58,13 +59,19 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
         struct astdtype *exprType = analyze_expression(sem, decl->declaration.value);
 
         if (!exprType) {
-                printf("A variable of this type can not be created on line %ld.\n", decl->line);
+                printf("Type evaluation failed for variable \"%s\" on line %ld.\n", decl->declaration.identifier,
+                       decl->line);
                 return false;
         }
 
-        if (types_compatible(decl->declaration.type, exprType)) {
-                printf("The effective type of the expression is not compatible with the variable declaration type on line %ld.\n",
+        if (!types_compatible(decl->declaration.type, exprType)) {
+                char *exprTypeStr = strdup(astdtype_string(exprType));
+                char *declTypeStr = strdup(astdtype_string(decl->declaration.type));
+                printf("The effective type of the expression (%s) is not compatible with the variable declaration type (%s) on line %ld.\n",
+                       exprTypeStr, declTypeStr,
                        decl->line);
+                free(exprTypeStr);
+                free(declTypeStr);
                 return false;
         }
 
@@ -176,6 +183,7 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr)
                 case NODE_INTEGER_LITERAL:
                 case NODE_FLOAT_LITERAL:
                 case NODE_STRING_LITERAL:
+                case NODE_FUNCTION_CALL:
                         return analyze_atom(sem, expr);
                 default:
                         return NULL;
@@ -230,5 +238,52 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
         if (atom->type == NODE_STRING_LITERAL)
                 return sem->int64;
 
+        if (atom->type == NODE_FUNCTION_CALL)
+                return analyze_function_call(sem, atom);
+
         return 0;
+}
+
+struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *call)
+{
+        struct astnode *symbol;
+
+        if (!(symbol = find_symbol(call->function_call.identifier, call->super))) {
+                printf("Attempting to call undefined function \"%s\". Error on line %ld.\n",
+                       call->function_call.identifier, call->line);
+                return NULL;
+        }
+
+        if (symbol->symbol.symtype != SYMBOL_FUNCTION) {
+                printf("Attempting to call %s as function. Error on line %ld.\n",
+                       symbol_type_humanstr(symbol->symbol.symtype), call->line);
+                return NULL;
+        }
+
+        struct astnode *definition = symbol->symbol.node;
+
+        size_t required_params = definition->function_def.params->block.nodes->node_compound.count;
+        size_t provided_params = call->function_call.values->block.nodes->node_compound.count;
+
+        if (required_params != provided_params) {
+                printf("The function \"%s\" (%s) expects %ld params. %ld Parameters were provided in the call. Error on line %ld\n",
+                       call->function_call.identifier, astdtype_string(definition->function_def.type), required_params,
+                       provided_params, call->line);
+                return NULL;
+        }
+
+        for (size_t i = 0; i < call->function_call.values->block.nodes->node_compound.count; i++) {
+                struct astnode *callValue = call->function_call.values->block.nodes->node_compound.array[i];
+                struct astdtype *valueType = analyze_expression(sem, callValue);
+                struct astnode *param = definition->function_def.params->block.nodes->node_compound.array[i];
+                struct astdtype *reqParamType = param->declaration.type;
+
+                if (!types_compatible(reqParamType, valueType)) {
+                        printf("The expression type is not compatible with the parameter number %ld \"%s\" of function \"%s\". Error on line %ld.\n",
+                               i + 1, param->declaration.identifier, definition->function_def.identifier, call->line);
+                        return NULL;
+                }
+        }
+
+        return definition->function_def.type;
 }

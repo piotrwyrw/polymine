@@ -88,6 +88,70 @@ struct astdtype *astdtype_custom(char *name)
         return wrapper;
 }
 
+#define MAX_TYPENAME_LENGTH 200
+
+char typename[200] = {0};
+
+static void astdtype_append_typename(struct astdtype *type)
+{
+        if (type->type == ASTDTYPE_VOID) {
+                strcat(typename, "void");
+                return;
+        }
+
+        if (type->type == ASTDTYPE_CUSTOM) {
+                strcat(typename, type->custom.name);
+                return;
+        }
+
+        if (type->type == ASTDTYPE_BUILTIN) {
+                switch (type->builtin.datatype) {
+                        case BUILTIN_DOUBLE:
+                                strcat(typename, "double");
+                                break;
+                        case BUILTIN_INT8:
+                                strcat(typename, "int8");
+                                break;
+                        case BUILTIN_INT16:
+                                strcat(typename, "int16");
+                                break;
+                        case BUILTIN_INT32:
+                                strcat(typename, "int32");
+                                break;
+                        case BUILTIN_INT64:
+                                strcat(typename, "int64");
+                                break;
+                        case BUILTIN_CHAR:
+                                strcat(typename, "char");
+                                break;
+                        case BUILTIN_GENERIC_BYTE:
+                                strcat(typename, "byte");
+                                break;
+                        default:
+                                strcat(typename, "<Unknown>");
+                                break;
+                }
+                return;
+        }
+
+        if (type->type == ASTDTYPE_POINTER) {
+                strcat(typename, "ptr(");
+                astdtype_append_typename(type->pointer.to);
+                strcat(typename, ")");
+                return;
+        }
+}
+
+char *astdtype_string(struct astdtype *type)
+{
+        memset(typename, 0, MAX_TYPENAME_LENGTH - 1);
+        astdtype_append_typename(type);
+        typename[MAX_TYPENAME_LENGTH - 1] = '\n';
+        return typename;
+}
+
+#undef MAX_TYPENAME_LENGTH
+
 
 const char *nodetype_string(enum nodetype type)
 {
@@ -311,7 +375,7 @@ struct astnode *astnode_float_literal(size_t line, struct astnode *block, double
         return node;
 }
 
-struct astnode *astnode_integer_literal(size_t line, struct astnode *block, int value)
+struct astnode *astnode_integer_literal(size_t line, struct astnode *block, int64_t value)
 {
         struct astnode *node = astnode_generic(NODE_INTEGER_LITERAL, line, block);
         node->integer_literal.integerValue = value;
