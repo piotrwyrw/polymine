@@ -423,7 +423,8 @@ struct astnode *parse_function_definition(struct parser *p)
                         }
 
                         astnode_push_compound(capture->block.nodes,
-                                              astnode_declaration(p->line, p->block, true, p->current.value, NULL, NULL));
+                                              astnode_declaration(p->line, p->block, true, p->current.value, NULL,
+                                                                  NULL));
 
                         parser_advance(p);
 
@@ -589,6 +590,8 @@ struct astnode *parse_additive_expr(struct parser *p)
                 }
 
                 left = astnode_binary(line, p->block, left, right, op);
+                left->binary.left->holder = left;
+                left->binary.right->holder = left;
         }
 
         return left;
@@ -655,10 +658,26 @@ struct astnode *parse_atom(struct parser *p)
 
                 parser_advance(p);
 
+                if (p->current.type != LX_RGREATER) {
+                        printf("Expected '<' after 'ptr_to' keyword. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        return NULL;
+                }
+
+                parser_advance(p);
+
                 struct astnode *to = parse_expr(p);
 
                 if (!to)
                         return NULL;
+
+                if (p->current.type != LX_LGREATER) {
+                        printf("Expected '>' after pointer expression. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        return NULL;
+                }
+
+                parser_advance(p);
 
                 return astnode_pointer(line, p->block, to);
         }

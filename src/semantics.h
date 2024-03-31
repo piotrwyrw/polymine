@@ -19,6 +19,8 @@ _Bool analyze_capture_group(struct semantics *, struct astnode *);
 
 _Bool analyze_resolve(struct semantics *, struct astnode *);
 
+_Bool analyze_assignment(struct semantics *, struct astnode *);
+
 struct astdtype *analyze_expression(struct semantics *, struct astnode *);
 
 struct astdtype *analyze_binary_expression(struct semantics *, struct astnode *);

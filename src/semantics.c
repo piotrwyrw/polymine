@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <string.h>
 
-// TODO Analyze capture groups, introduce captured variables as function parameters
-
 _Bool analyze_program(struct semantics *sem, struct astnode *program)
 {
         return analyze_any(sem, program->program.block);
@@ -37,7 +35,10 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                 case NODE_FLOAT_LITERAL:
                 case NODE_VARIABLE_USE:
                 case NODE_FUNCTION_CALL:
+                case NODE_POINTER:
                         return analyze_expression(sem, node) != NULL;
+                case NODE_VARIABLE_ASSIGNMENT:
+                        return analyze_assignment(sem, node);
                 case NODE_RESOLVE:
                         return analyze_resolve(sem, node);
                 case NODE_NOTHING:
@@ -79,6 +80,48 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
         put_symbol(decl->super,
                    astnode_symbol(decl->super, SYMBOL_VARIABLE, decl->declaration.identifier, decl->declaration.type,
                                   decl));
+
+        return true;
+}
+
+_Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
+{
+        struct astnode *sym;
+
+        if (!(sym = find_symbol(assignment->assignment.identifier, assignment->super))) {
+                printf("Attempted to assign undefined variable \"%s\" on line %ld.\n",
+                       assignment->assignment.identifier, assignment->line);
+                return false;
+        }
+
+        if (sym->symbol.symtype != SYMBOL_VARIABLE) {
+                printf("The symbol \"%s\" is a %s. Attempted assignment in variable context on line %ld.\n",
+                       assignment->assignment.identifier,
+                       symbol_type_humanstr(sym->symbol.symtype), assignment->line);
+                return false;
+        }
+
+        struct astdtype *exprType = analyze_expression(sem, assignment->assignment.value);
+
+        if (!exprType) {
+                printf("Type validation of assignment expression failed on line %ld.\n", assignment->line);
+                return false;
+        }
+
+        struct astdtype *varType = sym->symbol.type;
+
+        if (!types_compatible(varType, exprType)) {
+                char *exprTypeStr = strdup(astdtype_string(exprType));
+                char *varTypeStr = strdup(astdtype_string(varType));
+
+                printf("Cannot assign \"%s\" (%s) to an expression of type %s. Type compatibility error on line %ld.\n",
+                       assignment->assignment.identifier, varTypeStr, exprTypeStr);
+
+                free(exprTypeStr);
+                free(varTypeStr);
+
+                return false;
+        }
 
         return true;
 }
@@ -184,6 +227,7 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr)
                 case NODE_FLOAT_LITERAL:
                 case NODE_STRING_LITERAL:
                 case NODE_FUNCTION_CALL:
+                case NODE_POINTER:
                         return analyze_atom(sem, expr);
                 default:
                         return NULL;
@@ -235,13 +279,30 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
         if (atom->type == NODE_FLOAT_LITERAL)
                 return sem->_double;
 
-        if (atom->type == NODE_STRING_LITERAL)
+        if (atom->type == NODE_STRING_LITERAL) {
+                if (atom->holder->type == NODE_BINARY_OP) {
+                        printf("A string literal cannot be part of a binary expression. Violation (\"%s\") on line %ld.\n",
+                               atom->string_literal.value, atom->line);
+                        return NULL;
+                }
                 return sem->int64;
+        }
 
         if (atom->type == NODE_FUNCTION_CALL)
                 return analyze_function_call(sem, atom);
 
-        return 0;
+        if (atom->type == NODE_POINTER) {
+                struct astdtype *exprType = analyze_expression(sem, atom->pointer.target);
+
+                if (!exprType) {
+                        printf("Could not create pointer on line %ld: Type checking failed.\n", atom->line);
+                        return NULL;
+                }
+
+                return semantics_newtype(sem, astdtype_pointer(exprType));
+        }
+
+        return NULL;
 }
 
 struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *call)

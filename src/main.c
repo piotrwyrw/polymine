@@ -38,7 +38,7 @@ int main(void)
                 goto exit;
 
         struct semantics sem;
-        semantics_init(&sem);
+        semantics_init(&sem, p.types);
 
         analyze_program(&sem, node);
         ast_print(node, 0);

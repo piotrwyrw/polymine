@@ -11,9 +11,11 @@ struct semantics {
         struct astdtype *int64;
         struct astdtype *_double;
         struct astdtype *byte;
+
+        struct astnode *types;
 };
 
-void semantics_init(struct semantics *);
+void semantics_init(struct semantics *, struct astnode *types);
 
 void semantics_free(struct semantics *);
 
@@ -39,6 +41,8 @@ size_t quantify_type_size(struct astdtype *);
 struct astdtype *required_type(struct astdtype *, struct astdtype *);
 
 struct astdtype *required_type_integer(struct semantics *, int);
+
+struct astdtype *semantics_newtype(struct semantics *, struct astdtype *);
 
 /**
  * Note; This will only check for CONFLICTS, thus only in the current block, since

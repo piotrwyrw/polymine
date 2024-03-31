@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h>
 
-void semantics_init(struct semantics *sem)
+void semantics_init(struct semantics *sem, struct astnode *types)
 {
         sem->int8 = astdtype_builtin(BUILTIN_INT8);
         sem->int16 = astdtype_builtin(BUILTIN_INT16);
@@ -11,6 +11,7 @@ void semantics_init(struct semantics *sem)
         sem->int64 = astdtype_builtin(BUILTIN_INT64);
         sem->byte = astdtype_builtin(BUILTIN_GENERIC_BYTE);
         sem->_double = astdtype_builtin(BUILTIN_DOUBLE);
+        sem->types = types;
 }
 
 void semantics_free(struct semantics *sem)
@@ -89,10 +90,13 @@ void put_symbol(struct astnode *block, struct astnode *symbol)
         astnode_push_compound(block->block.symbols, symbol);
 }
 
-_Bool types_compatible(struct astdtype *destination, struct astdtype *source)
+static _Bool types_compatible_advanced(struct astdtype *destination, struct astdtype *source, _Bool pointer)
 {
         if (destination->type != source->type)
                 return false;
+
+        if (destination->type == ASTDTYPE_POINTER)
+                return types_compatible_advanced(destination->pointer.to, source->pointer.to, true);
 
         if (destination->type == ASTDTYPE_VOID)
                 return true;
@@ -100,10 +104,20 @@ _Bool types_compatible(struct astdtype *destination, struct astdtype *source)
         if (destination->type == ASTDTYPE_CUSTOM && strcmp(destination->custom.name, source->custom.name) == 0)
                 return true;
 
-        if (destination->type == ASTDTYPE_BUILTIN && (quantify_type_size(destination) >= quantify_type_size(source)))
-                return true;
+        if (destination->type == ASTDTYPE_BUILTIN) {
+                if (destination->builtin.datatype != source->builtin.datatype && pointer)
+                        return false;
+
+                if ((quantify_type_size(destination) >= quantify_type_size(source)))
+                        return true;
+        }
 
         return false;
+}
+
+_Bool types_compatible(struct astdtype *destination, struct astdtype *source)
+{
+        return types_compatible_advanced(destination, source, false);
 }
 
 size_t quantify_type_size(struct astdtype *type)
@@ -174,6 +188,12 @@ struct astdtype *required_type_integer(struct semantics *sem, int value)
                 return sem->int64;
 
         return NULL;
+}
+
+struct astdtype *semantics_newtype(struct semantics *sem, struct astdtype *type)
+{
+        astnode_push_compound(sem->types, astnode_data_type(type));
+        return type;
 }
 
 struct astnode *symbol_conflict(char *id, struct astnode *node)
