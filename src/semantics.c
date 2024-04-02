@@ -151,12 +151,18 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         if (fdef->function_def.capture)
                 analyze_capture_group(sem, fdef);
 
-        if (!analyze_any(sem, fdef->function_def.block))
-                return false;
+        struct astnode *sym;
 
         put_symbol(fdef->super,
-                   astnode_symbol(fdef->super, SYMBOL_FUNCTION, fdef->function_def.identifier, fdef->function_def.type,
-                                  fdef));
+                   (sym = astnode_symbol(fdef->super, SYMBOL_FUNCTION, fdef->function_def.identifier,
+                                         fdef->function_def.type,
+                                         fdef)));
+
+        // Note: We need to copy the symbol here
+        put_symbol(fdef->function_def.block, astnode_copy_symbol(sym));
+
+        if (!analyze_any(sem, fdef->function_def.block))
+                return false;
 
         return true;
 }

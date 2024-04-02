@@ -246,7 +246,6 @@ void astnode_free(struct astnode *node)
                 case NODE_VARIABLE_DECL:
                         astnode_free(node->declaration.value);
                         free(node->declaration.identifier);
-//                        astdtype_free(node->declaration.type);
                         break;
                 case NODE_POINTER:
                         astnode_free(node->pointer.target);
@@ -263,7 +262,6 @@ void astnode_free(struct astnode *node)
                         astnode_free(node->function_def.params);
                         astnode_free(node->function_def.block);
                         astnode_free(node->function_def.capture);
-//                        astdtype_free(node->function_def.type);
                         break;
                 case NODE_FUNCTION_CALL:
                         free(node->function_call.identifier);
@@ -364,6 +362,7 @@ void astnode_free_compound(struct astnode *compound)
 void astnode_free_block(struct astnode *block)
 {
         astnode_free_compound(block->block.nodes);
+
         astnode_free_compound(block->block.symbols);
         free(block);
 }
@@ -473,4 +472,9 @@ struct astnode *astnode_symbol(struct astnode *block, enum symbol_type t, char *
         node->symbol.type = type;
         node->symbol.node = orig;
         return node;
+}
+
+struct astnode *astnode_copy_symbol(struct astnode *sym)
+{
+        return astnode_symbol(sym->super, sym->symbol.symtype, sym->symbol.identifier, sym->symbol.type, sym->symbol.node);
 }

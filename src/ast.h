@@ -256,4 +256,6 @@ struct astnode *astnode_data_type(struct astdtype *);
 
 struct astnode *astnode_symbol(struct astnode *, enum symbol_type, char *, struct astdtype *, struct astnode *);
 
+struct astnode *astnode_copy_symbol(struct astnode *);
+
 #endif

@@ -222,7 +222,7 @@ struct astnode *symbol_conflict(char *id, struct astnode *node)
         struct astnode *symbol;
 
         // Node: Functions may not be shadowed to avoid confusion
-        if ((symbol = find_symbol(id, node->super)) && (symbol->super == node->super || symbol->type == SYMBOL_FUNCTION || node->type == NODE_FUNCTION_DEFINITION)) {
+        if ((symbol = find_symbol(id, node->super)) && symbol->super == node->super) {
                 printf("The symbol '%s' is already defined - Redefinition attempted on line %ld. Previous definition on line %ld as a %s.\n",
                        id, node->line, symbol->line,
                        symbol_type_humanstr(symbol->symbol.symtype));
