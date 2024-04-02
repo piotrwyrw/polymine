@@ -22,7 +22,12 @@ void semantics_free(struct semantics *);
 enum traverse_params {
         TRAVERSE_SYMBOLS = (1 << 0),
         TRAVERSE_NODES = (1 << 1),
-        HALT_NESTED = (1 << 2) // The upward traversal should not proceed after the block belonging to a nested function is analysed.
+
+        // The upward traversal should not proceed after the block belonging to a nested function is analysed.
+        TRAVERSE_HALT_NESTED = (1 << 2),
+
+        // The global scope/block should be traversed, even if the search is halted by TRAVERSE_HALT_NESTED
+        TRAVERSE_GLOBAL_REGARDLESS = (1 << 3)
 };
 
 struct astnode *custom_traverse(void *, void *(*)(void *, struct astnode *), struct astnode *, enum traverse_params);

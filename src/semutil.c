@@ -43,16 +43,33 @@ struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct as
         }
 
         struct astnode *b = block;
-        struct astnode *node = NULL;
+        struct astnode *node;
 
         while (b != NULL) {
                 if ((node = astnode_compound_foreach((domain & TRAVERSE_SYMBOLS) ? b->block.symbols : b->block.nodes,
                                                      param, callback)))
                         return node;
 
-                if (domain & HALT_NESTED && b->holder->type == NODE_FUNCTION_DEFINITION &&
-                    b->holder->function_def.capture)
-                        return node;
+                if (domain & TRAVERSE_HALT_NESTED && b->holder->type == NODE_FUNCTION_DEFINITION &&
+                    b->holder->function_def.capture) {
+
+                        if (!(domain & TRAVERSE_GLOBAL_REGARDLESS))
+                                return NULL;
+
+                        // Traverse the tree up all the way up until the global scope
+                        while (true) {
+                                if (!b->holder)
+                                        return NULL;
+
+                                if (b->holder->type == NODE_PROGRAM)
+                                        break;
+
+                                if (b->super)
+                                        b = b->super;
+                        }
+
+                        return custom_traverse(param, callback, b, domain);
+                }
 
                 b = b->super;
         }
@@ -62,7 +79,7 @@ struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct as
 
 struct astnode *find_symbol(char *id, struct astnode *block)
 {
-        return custom_traverse(id, (void *) filter_symbol, block, TRAVERSE_SYMBOLS | HALT_NESTED);
+        return custom_traverse(id, (void *) filter_symbol, block, TRAVERSE_SYMBOLS | TRAVERSE_HALT_NESTED | TRAVERSE_GLOBAL_REGARDLESS);
 }
 
 struct astnode *find_symbol_shallow(char *id, struct astnode *block)
