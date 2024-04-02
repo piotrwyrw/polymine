@@ -273,8 +273,15 @@ struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use
 
 struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
 {
-        if (atom->type == NODE_INTEGER_LITERAL)
-                return required_type_integer(sem, atom->integer_literal.integerValue);
+        if (atom->type == NODE_INTEGER_LITERAL) {
+                struct astdtype *type = required_type_integer(sem, atom->integer_literal.integerValue);
+                if (!type) {
+                        printf("Could not find appropriate builtin type for the provided integer literal on line %ld.\n",
+                               atom->line);
+                        return NULL;
+                }
+                return type;
+        }
 
         if (atom->type == NODE_FLOAT_LITERAL)
                 return sem->_double;

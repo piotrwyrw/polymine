@@ -19,12 +19,13 @@ void semantics_init(struct semantics *, struct astnode *types);
 
 void semantics_free(struct semantics *);
 
-enum traversal_domain {
-        TRAVERSE_SYMBOLS,
-        TRAVERSE_NODES
+enum traverse_params {
+        TRAVERSE_SYMBOLS = (1 << 0),
+        TRAVERSE_NODES = (1 << 1),
+        HALT_NESTED = (1 << 2) // The upward traversal should not proceed after the block belonging to a nested function is analysed.
 };
 
-struct astnode *custom_traverse(void *, void *(*)(void *, struct astnode *), struct astnode *, enum traversal_domain);
+struct astnode *custom_traverse(void *, void *(*)(void *, struct astnode *), struct astnode *, enum traverse_params);
 
 struct astnode *find_symbol(char *, struct astnode *);
 

@@ -35,7 +35,7 @@ static struct astnode *filter_symbol(char *id, struct astnode *node)
         return node;
 }
 
-struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct astnode *), struct astnode *block, enum traversal_domain domain)
+struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct astnode *), struct astnode *block, enum traverse_params domain)
 {
         if (block->type != NODE_BLOCK) {
                 printf("custom_traverse(..): Block is a %s!\n", nodetype_string(block->type));
@@ -43,11 +43,15 @@ struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct as
         }
 
         struct astnode *b = block;
-        struct astnode *node;
+        struct astnode *node = NULL;
 
         while (b != NULL) {
-                if ((node = astnode_compound_foreach((domain == TRAVERSE_SYMBOLS) ? b->block.symbols : b->block.nodes,
+                if ((node = astnode_compound_foreach((domain & TRAVERSE_SYMBOLS) ? b->block.symbols : b->block.nodes,
                                                      param, callback)))
+                        return node;
+
+                if (domain & HALT_NESTED && b->holder->type == NODE_FUNCTION_DEFINITION &&
+                    b->holder->function_def.capture)
                         return node;
 
                 b = b->super;
@@ -58,7 +62,7 @@ struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct as
 
 struct astnode *find_symbol(char *id, struct astnode *block)
 {
-        return custom_traverse(id, (void *) filter_symbol, block, TRAVERSE_SYMBOLS);
+        return custom_traverse(id, (void *) filter_symbol, block, TRAVERSE_SYMBOLS | HALT_NESTED);
 }
 
 struct astnode *find_symbol_shallow(char *id, struct astnode *block)
