@@ -1,0 +1,6 @@
+## To-Do
+Create a global function index. Ensure function names are
+    a) Unique and
+    b) Make logical sense wrt. to the super function in case of nested functions
+
+Add a function type (for function references, pointers)

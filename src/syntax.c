@@ -653,6 +653,16 @@ struct astnode *parse_atom(struct parser *p)
         if (p->current.type == LX_IDEN && p->next.type == LX_LPAREN)
                 return parse_function_call(p);
 
+        if (p->current.type == LX_IDEN && strcmp(p->current.value, "true") == 0) {
+                parser_advance(p);
+                return astnode_integer_literal(p->line, p->block, 1);
+        }
+
+        if (p->current.type == LX_IDEN && strcmp(p->current.value, "false") == 0) {
+                parser_advance(p);
+                return astnode_integer_literal(p->line, p->block, 0);
+        }
+        
         if (p->current.type == LX_IDEN && strcmp(p->current.value, "ptr_to") == 0) {
                 size_t line = p->line;
 

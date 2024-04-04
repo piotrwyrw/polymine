@@ -11,7 +11,7 @@
 enum nodetype : uint8_t {
         NODE_UNDEFINED = 0,
 
-        NODE_NOTHING, // Warning: This is NOT the same as UNDEFINED !! Something along the lines on NOP
+        NODE_NOTHING, // Warning: This is NOT the same as UNDEFINED !! Something along the lines of a NOP
         NODE_COMPOUND,
         NODE_BLOCK,
         NODE_PROGRAM,

@@ -6,7 +6,29 @@
 
 _Bool analyze_program(struct semantics *sem, struct astnode *program)
 {
-        return analyze_any(sem, program->program.block);
+        if (!analyze_any(sem, program->program.block))
+                return false;
+
+        struct astnode *sym;
+
+        if (!(sym = find_symbol("main", program->program.block))) {
+                printf("Could not find main function.\n");
+                return false;
+        }
+
+        if (sym->symbol.symtype != SYMBOL_FUNCTION) {
+                printf("The symbol 'main' is a %s. Expected function.", symbol_type_humanstr(sym->symbol.symtype));
+                return false;
+        }
+
+        struct astdtype *type = sym->symbol.node->function_def.type;
+
+        if (type->type != ASTDTYPE_VOID) {
+                printf("Expected the main function to be of type void.\n");
+                return false;
+        }
+
+        return true;
 }
 
 _Bool analyze_compound(struct semantics *sem, struct astnode *compound)
@@ -212,8 +234,15 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
         }
 
         if (!types_compatible(function->function_def.type, type)) {
-                printf("The resolve statement expression is not compatible with the function type on line %ld.\n",
-                       res->line);
+                char *exprType = strdup(astdtype_string(type));
+                char *fnType = strdup(astdtype_string(function->function_def.type));
+
+                printf("The resolve statement expression type (%s) is not compatible with the function type (%s) on line %ld.\n",
+                       exprType, fnType, res->line);
+
+                free(exprType);
+                free(fnType);
+
                 return false;
         }
 
@@ -251,7 +280,15 @@ struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode
         struct astdtype *type = required_type(left, right);
 
         if (!type) {
-                printf("Cannot perform binary operation between the given types on line %ld.\n", bin->line);
+                char *leftType = strdup(astdtype_string(left));
+                char *rightType = strdup(astdtype_string(right));
+
+                printf("Cannot perform binary operation between %s and %s on line %ld.\n", leftType, rightType,
+                       bin->line);
+
+                free(leftType);
+                free(rightType);
+
                 return NULL;
         }
 
@@ -329,8 +366,8 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
         }
 
         if (symbol->symbol.symtype != SYMBOL_FUNCTION) {
-                printf("Attempting to call %s as function. Error on line %ld.\n",
-                       symbol_type_humanstr(symbol->symbol.symtype), call->line);
+                printf("Attempting to call %s \"%s\" as function. Error on line %ld.\n",
+                       symbol_type_humanstr(symbol->symbol.symtype), call->symbol.identifier, call->line);
                 return NULL;
         }
 
@@ -353,8 +390,17 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
                 struct astdtype *reqParamType = param->declaration.type;
 
                 if (!types_compatible(reqParamType, valueType)) {
-                        printf("The expression type is not compatible with the parameter number %ld \"%s\" of function \"%s\". Error on line %ld.\n",
-                               i + 1, param->declaration.identifier, definition->function_def.identifier, call->line);
+
+                        char *paramType = strdup(astdtype_string(reqParamType));
+                        char *exprType = strdup(astdtype_string(valueType));
+
+                        printf("The expression type \"%s\" is not compatible with the parameter number %ld \"%s\" (%s) of function \"%s\". Error on line %ld.\n",
+                               exprType, i + 1, param->declaration.identifier, paramType,
+                               definition->function_def.identifier, call->line);
+
+                        free(paramType);
+                        free(exprType);
+
                         return NULL;
                 }
         }
