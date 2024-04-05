@@ -47,6 +47,9 @@ int main(void)
         semantics_free(&sem);
 
         exit:
+
+        freeDataTypes = true;
+
         parser_free(&p);
 
         input_free(&handle);

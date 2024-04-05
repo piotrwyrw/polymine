@@ -50,6 +50,8 @@ struct astdtype *required_type_integer(struct semantics *, int);
 
 struct astdtype *semantics_newtype(struct semantics *, struct astdtype *);
 
+struct astdtype *function_def_type(struct astnode *);
+
 /**
  * Note; This will only check for CONFLICTS, thus only in the current block, since
  * variable shadowing is supported

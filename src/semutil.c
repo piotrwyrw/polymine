@@ -79,7 +79,8 @@ struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct as
 
 struct astnode *find_symbol(char *id, struct astnode *block)
 {
-        return custom_traverse(id, (void *) filter_symbol, block, TRAVERSE_SYMBOLS | TRAVERSE_HALT_NESTED | TRAVERSE_GLOBAL_REGARDLESS);
+        return custom_traverse(id, (void *) filter_symbol, block,
+                               TRAVERSE_SYMBOLS | TRAVERSE_HALT_NESTED | TRAVERSE_GLOBAL_REGARDLESS);
 }
 
 struct astnode *find_symbol_shallow(char *id, struct astnode *block)
@@ -111,6 +112,9 @@ void put_symbol(struct astnode *block, struct astnode *symbol)
         astnode_push_compound(block->block.symbols, symbol);
 }
 
+/**
+ * @param pointer - The types must be an EXACT match
+ */
 static _Bool types_compatible_advanced(struct astdtype *destination, struct astdtype *source, _Bool pointer)
 {
         if (destination->type != source->type)
@@ -124,6 +128,20 @@ static _Bool types_compatible_advanced(struct astdtype *destination, struct astd
 
         if (destination->type == ASTDTYPE_CUSTOM && strcmp(destination->custom.name, source->custom.name) == 0)
                 return true;
+
+        if (destination->type == ASTDTYPE_LAMBDA) {
+                if (!types_compatible(destination->lambda.returnType, source->lambda.returnType))
+                        return false;
+
+                struct astnode *paramTypes = destination->lambda.paramTypes;
+
+                for (size_t i = 0; i < paramTypes->node_compound.count; i++)
+                        if (!types_compatible(paramTypes->node_compound.array[i]->data_type.adt,
+                                              source->lambda.paramTypes->node_compound.array[i]->data_type.adt))
+                                return false;
+
+                return true;
+        }
 
         if (destination->type == ASTDTYPE_BUILTIN) {
                 if (destination->builtin.datatype != source->builtin.datatype && pointer)
@@ -215,6 +233,18 @@ struct astdtype *semantics_newtype(struct semantics *sem, struct astdtype *type)
 {
         astnode_push_compound(sem->types, astnode_data_type(type));
         return type;
+}
+
+struct astdtype *function_def_type(struct astnode *fdef)
+{
+        struct astnode *types = astnode_empty_compound(fdef->line, fdef->super);
+        struct astdtype *returnType = fdef->function_def.type;
+        struct astnode *params = fdef->function_def.params;
+
+        for (size_t i = 0; i < params->node_compound.count; i++)
+                astnode_push_compound(types, astnode_data_type(params->node_compound.array[i]->declaration.type));
+
+        return astdtype_lambda(types, returnType);
 }
 
 struct astnode *symbol_conflict(char *id, struct astnode *node)

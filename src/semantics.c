@@ -88,11 +88,13 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
         }
 
         if (!types_compatible(decl->declaration.type, exprType)) {
-                char *exprTypeStr = strdup(astdtype_string(exprType));
-                char *declTypeStr = strdup(astdtype_string(decl->declaration.type));
+                char *exprTypeStr = astdtype_string(exprType);
+                char *declTypeStr = astdtype_string(decl->declaration.type);
+
                 printf("The effective type of the expression (%s) is not compatible with the variable declaration type (%s) on line %ld.\n",
                        exprTypeStr, declTypeStr,
                        decl->line);
+
                 free(exprTypeStr);
                 free(declTypeStr);
                 return false;
@@ -133,11 +135,11 @@ _Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
         struct astdtype *varType = sym->symbol.type;
 
         if (!types_compatible(varType, exprType)) {
-                char *exprTypeStr = strdup(astdtype_string(exprType));
-                char *varTypeStr = strdup(astdtype_string(varType));
+                char *exprTypeStr = astdtype_string(exprType);
+                char *varTypeStr = astdtype_string(varType);
 
                 printf("Cannot assign \"%s\" (%s) to an expression of type %s. Type compatibility error on line %ld.\n",
-                       assignment->assignment.identifier, varTypeStr, exprTypeStr);
+                       assignment->assignment.identifier, varTypeStr, exprTypeStr, assignment->line);
 
                 free(exprTypeStr);
                 free(varTypeStr);
@@ -168,7 +170,7 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                 return false;
         }
 
-        astnode_compound_foreach(fdef->function_def.params->block.nodes, fdef, (void *) declare_param_variable);
+        astnode_compound_foreach(fdef->function_def.params, fdef, (void *) declare_param_variable);
 
         if (fdef->function_def.capture)
                 analyze_capture_group(sem, fdef);
@@ -215,7 +217,7 @@ static void *analyze_capture_variable(struct astnode *fdef, struct astnode *var)
 
 _Bool analyze_capture_group(struct semantics *sem, struct astnode *fdef)
 {
-        return astnode_compound_foreach(fdef->function_def.capture->block.nodes, fdef,
+        return astnode_compound_foreach(fdef->function_def.capture, fdef,
                                         (void *) analyze_capture_variable) == NULL;
 }
 
@@ -234,8 +236,8 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
         }
 
         if (!types_compatible(function->function_def.type, type)) {
-                char *exprType = strdup(astdtype_string(type));
-                char *fnType = strdup(astdtype_string(function->function_def.type));
+                char *exprType = astdtype_string(type);
+                char *fnType = astdtype_string(function->function_def.type);
 
                 printf("The resolve statement expression type (%s) is not compatible with the function type (%s) on line %ld.\n",
                        exprType, fnType, res->line);
@@ -263,6 +265,7 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr)
                 case NODE_STRING_LITERAL:
                 case NODE_FUNCTION_CALL:
                 case NODE_POINTER:
+                case NODE_FUNCTION_DEFINITION:
                         return analyze_atom(sem, expr);
                 default:
                         return NULL;
@@ -280,8 +283,8 @@ struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode
         struct astdtype *type = required_type(left, right);
 
         if (!type) {
-                char *leftType = strdup(astdtype_string(left));
-                char *rightType = strdup(astdtype_string(right));
+                char *leftType = astdtype_string(left);
+                char *rightType = astdtype_string(right);
 
                 printf("Cannot perform binary operation between %s and %s on line %ld.\n", leftType, rightType,
                        bin->line);
@@ -330,7 +333,7 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
                 return sem->_double;
 
         if (atom->type == NODE_STRING_LITERAL) {
-                if (atom->holder->type == NODE_BINARY_OP) {
+                if (atom->holder && atom->holder->type == NODE_BINARY_OP) {
                         printf("A string literal cannot be part of a binary expression. Violation (\"%s\") on line %ld.\n",
                                atom->string_literal.value, atom->line);
                         return NULL;
@@ -351,6 +354,9 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
 
                 return semantics_newtype(sem, astdtype_pointer(exprType));
         }
+
+        if (atom->type == NODE_FUNCTION_DEFINITION)
+                return semantics_newtype(sem, function_def_type(atom));
 
         return NULL;
 }
@@ -373,26 +379,30 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 
         struct astnode *definition = symbol->symbol.node;
 
-        size_t required_params = definition->function_def.params->block.nodes->node_compound.count;
-        size_t provided_params = call->function_call.values->block.nodes->node_compound.count;
+        size_t required_params = definition->function_def.params->node_compound.count;
+        size_t provided_params = call->function_call.values->node_compound.count;
 
         if (required_params != provided_params) {
+                char *typeStr = astdtype_string(definition->function_def.type);
+
                 printf("The function \"%s\" (%s) expects %ld params. %ld Parameters were provided in the call. Error on line %ld\n",
-                       call->function_call.identifier, astdtype_string(definition->function_def.type), required_params,
+                       call->function_call.identifier, typeStr, required_params,
                        provided_params, call->line);
+
+                free(typeStr);
                 return NULL;
         }
 
-        for (size_t i = 0; i < call->function_call.values->block.nodes->node_compound.count; i++) {
-                struct astnode *callValue = call->function_call.values->block.nodes->node_compound.array[i];
+        for (size_t i = 0; i < provided_params; i++) {
+                struct astnode *callValue = call->function_call.values->node_compound.array[i];
                 struct astdtype *valueType = analyze_expression(sem, callValue);
-                struct astnode *param = definition->function_def.params->block.nodes->node_compound.array[i];
+                struct astnode *param = definition->function_def.params->node_compound.array[i];
                 struct astdtype *reqParamType = param->declaration.type;
 
                 if (!types_compatible(reqParamType, valueType)) {
 
-                        char *paramType = strdup(astdtype_string(reqParamType));
-                        char *exprType = strdup(astdtype_string(valueType));
+                        char *paramType = astdtype_string(reqParamType);
+                        char *exprType = astdtype_string(valueType);
 
                         printf("The expression type \"%s\" is not compatible with the parameter number %ld \"%s\" (%s) of function \"%s\". Error on line %ld.\n",
                                exprType, i + 1, param->declaration.identifier, paramType,

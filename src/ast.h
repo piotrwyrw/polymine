@@ -199,6 +199,8 @@ struct astdtype {
         };
 };
 
+extern _Bool freeDataTypes;
+
 void astdtype_free(struct astdtype *);
 
 struct astdtype *astdtype_generic(enum astdtype_type);

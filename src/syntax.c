@@ -275,7 +275,7 @@ struct astnode *parse_function_parameters(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *params = astnode_empty_block(p->line, p->block);
+        struct astnode *params = astnode_empty_compound(p->line, p->block);
 
         while (p->current.type != LX_UNDEFINED) {
                 if (p->current.type == LX_RPAREN)
@@ -313,7 +313,7 @@ struct astnode *parse_function_parameters(struct parser *p)
                         return NULL;
                 }
 
-                astnode_push_compound(params->block.nodes,
+                astnode_push_compound(params,
                                       astnode_declaration(p->line, p->block, false, id, type, NULL));
 
                 free(id);
@@ -374,7 +374,7 @@ struct astnode *parse_function_definition(struct parser *p)
                         return NULL;
                 }
         } else
-                params = astnode_empty_block(p->line, p->block);
+                params = astnode_empty_compound(p->line, p->block);
 
         if (p->current.type != LX_IDEN || strcmp(p->current.value, "of") != 0) {
                 printf("Expected 'of' after function parameter block. Got %s (\"%s\") on line %ld.\n",
@@ -407,7 +407,7 @@ struct astnode *parse_function_definition(struct parser *p)
 
                 parser_advance(p);
 
-                capture = astnode_empty_block(p->line, p->block);
+                capture = astnode_empty_compound(p->line, p->block);
 
                 while (p->current.type != LX_UNDEFINED) {
                         if (p->current.type != LX_IDEN) {
@@ -419,7 +419,7 @@ struct astnode *parse_function_definition(struct parser *p)
                                 return NULL;
                         }
 
-                        astnode_push_compound(capture->block.nodes,
+                        astnode_push_compound(capture,
                                               astnode_declaration(p->line, p->block, true, p->current.value, NULL,
                                                                   NULL));
 
@@ -493,7 +493,7 @@ struct astnode *parse_resolve(struct parser *p)
         return resv;
 }
 
-struct astdtype *parse_type(struct parser *p)
+static struct astdtype *actually_parse_type(struct parser *p)
 {
         char *identifier;
 
@@ -503,78 +503,89 @@ struct astdtype *parse_type(struct parser *p)
                 return NULL;
         }
 
-//        if (strcmp(p->current.value, "function") == 0) {
-//                parser_advance(p);
-//
-//                if (p->current.type != LX_LPAREN) {
-//                        printf("Expected '(' after function_def type. Got %s (\"%s\") on line %ld.\n",
-//                               lxtype_string(p->current.type), p->current.value, p->line);
-//                        return NULL;
-//                }
-//
-//                parser_advance(p);
-//
-//                struct astnode *pTypes = astnode_empty_compound(p->line, p->block);
-//
-//                while (p->current.type != LX_UNDEFINED) {
-//                        if (p->current.type == LX_RPAREN) {
-//                                parser_advance(p);
-//                                break;
-//                        }
-//
-//                        if (p->current.type != LX_IDEN) {
-//                                printf("Expected function_def parameter type. Got %s (\"%s\") on line %ld.\n",
-//                                       lxtype_string(p->current.type), p->current.value, p->line);
-//                                astnode_free(pTypes);
-//                                return NULL;
-//                        }
-//
-//                        parser_advance(p);
-//
-//                        if (p->current.type == LX_COMMA) {
-//                                parser_advance(p);
-//                                continue;
-//                        }
-//
-//                        if (p->current.type == LX_RPAREN) {
-//                                parser_advance(p);
-//                                break;
-//                        }
-//
-//                        printf("Expected ',' and more function_def parameter types. Got %s (\"%s\") on line %ld.\n",
-//                               lxtype_string(p->current.type), p->current.value, p->line);
-//
-//                        astnode_free(pTypes);
-//
-//                        return NULL;
-//                }
-//
-//                if (p->current.type != LX_MOV_RIGHT) {
-//                        printf("Expected '->' after function_def parameters. Got %s (\"%s\") on line %ld.\n",
-//                               lxtype_string(p->current.type), p->current.value, p->line);
-//
-//                        astnode_free(pTypes);
-//
-//                        return NULL;
-//                }
-//
-//                parser_advance(p);
-//
-//                struct astdtype *type = parse_type(p);
-//
-//                if (!type) {
-//                        astnode_free(pTypes);
-//                        return NULL;
-//                }
-//
-//                return astdtype_function_def(type, pTypes);
-//        }
+        if (strcmp(p->current.value, "lambda") == 0) {
+                parser_advance(p);
+
+                if (p->current.type != LX_LPAREN) {
+                        printf("Expected '(' after function_def type. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        return NULL;
+                }
+
+                parser_advance(p);
+
+                struct astnode *pTypes = astnode_empty_compound(p->line, p->block);
+
+                while (p->current.type != LX_UNDEFINED) {
+                        if (p->current.type == LX_RPAREN) {
+                                parser_advance(p);
+                                break;
+                        }
+
+                        if (p->current.type != LX_IDEN) {
+                                printf("Expected lambda parameter type. Got %s (\"%s\") on line %ld.\n",
+                                       lxtype_string(p->current.type), p->current.value, p->line);
+                                astnode_free(pTypes);
+                                return NULL;
+                        }
+
+                        struct astdtype *type = parse_type(p);
+
+                        if (!type) {
+                                astnode_free(pTypes);
+                                return NULL;
+                        }
+
+                        astnode_push_compound(pTypes, astnode_data_type(type));
+
+                        if (p->current.type == LX_COMMA) {
+                                parser_advance(p);
+                                continue;
+                        }
+
+                        if (p->current.type == LX_RPAREN) {
+                                parser_advance(p);
+                                break;
+                        }
+
+                        printf("Expected ',' and more lambda parameter types. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+
+                        astnode_free(pTypes);
+
+                        return NULL;
+                }
+
+                if (p->current.type != LX_MOV_RIGHT) {
+                        printf("Expected '->' after lambda parameters. Got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+
+                        astnode_free(pTypes);
+
+                        return NULL;
+                }
+
+                parser_advance(p);
+
+                struct astdtype *type = parse_type(p);
+
+                if (!type) {
+                        astnode_free(pTypes);
+                        return NULL;
+                }
+
+                struct astdtype *lambda = astdtype_lambda(pTypes, type);
+
+//                astnode_push_compound(p->types, astnode_data_type(lambda));
+
+                return lambda;
+        }
 
         if (strcmp(p->current.value, "void") == 0) {
                 parser_advance(p);
 
                 struct astdtype *v = astdtype_void();
-                astnode_push_compound(p->types, astnode_data_type(v));
+//                astnode_push_compound(p->types, astnode_data_type(v));
 
                 return v;
         }
@@ -587,7 +598,7 @@ struct astdtype *parse_type(struct parser *p)
                 parser_advance(p);
 
                 struct astdtype *builtin = astdtype_builtin(bt);
-                astnode_push_compound(p->types, astnode_data_type(builtin));
+//                astnode_push_compound(p->types, astnode_data_type(builtin));
 
                 return builtin;
         }
@@ -617,7 +628,7 @@ struct astdtype *parse_type(struct parser *p)
                 parser_advance(p);
 
                 struct astdtype *pointer = astdtype_pointer(enclosed);
-                astnode_push_compound(p->types, astnode_data_type(pointer));
+//                astnode_push_compound(p->types, astnode_data_type(pointer));
 
                 return pointer;
         }
@@ -627,6 +638,17 @@ struct astdtype *parse_type(struct parser *p)
 
         return type;
 }
+
+
+struct astdtype *parse_type(struct parser *p)
+{
+        struct astdtype *type = actually_parse_type(p);
+        if (!type)
+                return NULL;
+        astnode_push_compound(p->types, astnode_data_type(type));
+        return type;
+}
+
 
 inline struct astnode *parse_expr(struct parser *p)
 {
@@ -729,7 +751,7 @@ struct astnode *parse_atom(struct parser *p)
                 parser_advance(p);
                 return astnode_integer_literal(p->line, p->block, 0);
         }
-        
+
         if (p->current.type == LX_IDEN && strcmp(p->current.value, "ptr_to") == 0) {
                 size_t line = p->line;
 
@@ -793,7 +815,7 @@ struct astnode *parse_function_call(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *values = astnode_empty_block(line, p->block);
+        struct astnode *values = astnode_empty_compound(line, p->block);
         struct astnode *expr;
 
         while (p->current.type != LX_UNDEFINED) {
@@ -808,7 +830,7 @@ struct astnode *parse_function_call(struct parser *p)
                         return NULL;
                 }
 
-                astnode_push_compound(values->block.nodes, expr);
+                astnode_push_compound(values, expr);
 
                 if (p->current.type == LX_RPAREN)
                         break;

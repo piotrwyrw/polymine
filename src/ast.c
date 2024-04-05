@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+_Bool freeDataTypes = false;
+
 enum builtin_type builtin_from_string(char *str)
 {
 #define RETURN_IF(val, type) \
@@ -47,6 +49,11 @@ void astdtype_free(struct astdtype *adt)
                         break;
                 case ASTDTYPE_CUSTOM:
                         free(adt->custom.name);
+                        break;
+                case ASTDTYPE_LAMBDA:
+                        freeDataTypes = false;
+                        astnode_free(adt->lambda.paramTypes);
+                        freeDataTypes = true;
                         break;
                 default:
                         break;
@@ -98,18 +105,21 @@ struct astdtype *astdtype_lambda(struct astnode *paramTypes, struct astdtype *re
 
 #define MAX_TYPENAME_LENGTH 200
 
-char typename[200] = {0};
-
-static void astdtype_append_typename(struct astdtype *type)
+char *astdtype_string(struct astdtype *type)
 {
+        char *typename = calloc(MAX_TYPENAME_LENGTH, sizeof(char));
+
+        if (!type)
+                return typename;
+
         if (type->type == ASTDTYPE_VOID) {
                 strcat(typename, "void");
-                return;
+                return typename;
         }
 
         if (type->type == ASTDTYPE_CUSTOM) {
                 strcat(typename, type->custom.name);
-                return;
+                return typename;
         }
 
         if (type->type == ASTDTYPE_BUILTIN) {
@@ -139,22 +149,45 @@ static void astdtype_append_typename(struct astdtype *type)
                                 strcat(typename, "<Unknown>");
                                 break;
                 }
-                return;
+
+                return typename;
         }
 
         if (type->type == ASTDTYPE_POINTER) {
                 strcat(typename, "ptr(");
-                astdtype_append_typename(type->pointer.to);
-                strcat(typename, ")");
-                return;
-        }
-}
 
-char *astdtype_string(struct astdtype *type)
-{
-        memset(typename, 0, MAX_TYPENAME_LENGTH - 1);
-        astdtype_append_typename(type);
-        typename[MAX_TYPENAME_LENGTH - 1] = '\n';
+                char *s = astdtype_string(type->pointer.to);
+                strcat(typename, s);
+                free(s);
+
+                strcat(typename, ")");
+                return typename;
+        }
+
+        if (type->type == ASTDTYPE_LAMBDA) {
+                strcat(typename, "lambda(");
+
+                struct astnode *paramTypes = type->lambda.paramTypes;
+
+                char *s;
+
+                for (size_t i = 0; i < paramTypes->node_compound.count; i++) {
+                        strcat(typename, (s = astdtype_string(paramTypes->node_compound.array[i]->data_type.adt)));
+                        free(s);
+
+                        if (i + 1 < paramTypes->node_compound.count) {
+                                strcat(typename, ", ");
+                        }
+                }
+
+                strcat(typename, ") -> ");
+
+                strcat(typename, (s = astdtype_string(type->lambda.returnType)));
+                free(s);
+
+                return typename;
+        }
+
         return typename;
 }
 
@@ -278,9 +311,12 @@ void astnode_free(struct astnode *node)
                 case NODE_RESOLVE:
                         astnode_free(node->resolve.value);
                         break;
-                case NODE_DATA_TYPE:
-                        astdtype_free(node->data_type.adt);
-                        break;
+//                case NODE_DATA_TYPE:
+//                        if (!freeDataTypes)
+//                                break;
+//
+//                        astdtype_free(node->data_type.adt);
+//                        break;
                 default:
                         break;
         }
@@ -370,7 +406,6 @@ void astnode_free_compound(struct astnode *compound)
 void astnode_free_block(struct astnode *block)
 {
         astnode_free_compound(block->block.nodes);
-
         astnode_free_compound(block->block.symbols);
         free(block);
 }
@@ -484,5 +519,6 @@ struct astnode *astnode_symbol(struct astnode *block, enum symbol_type t, char *
 
 struct astnode *astnode_copy_symbol(struct astnode *sym)
 {
-        return astnode_symbol(sym->super, sym->symbol.symtype, sym->symbol.identifier, sym->symbol.type, sym->symbol.node);
+        return astnode_symbol(sym->super, sym->symbol.symtype, sym->symbol.identifier, sym->symbol.type,
+                              sym->symbol.node);
 }

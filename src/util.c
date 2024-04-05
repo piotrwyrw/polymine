@@ -72,6 +72,8 @@ void ast_print(struct astnode *node, size_t level)
         printf("%ld\t%s", line, indent); \
         printf(__VA_ARGS__)
 
+        char *s;
+
         switch (node->type) {
                 case NODE_UNDEFINED:
                 INDENTED("( Undefined )\n");
@@ -94,7 +96,7 @@ void ast_print(struct astnode *node, size_t level)
                         ast_print(node->program.block, level + 1);
                         break;
                 case NODE_INTEGER_LITERAL:
-                INDENTED("Integer Literal: %d\n", node->integer_literal.integerValue);
+                INDENTED("Integer Literal: %lld\n", node->integer_literal.integerValue);
                         break;
                 case NODE_FLOAT_LITERAL:
                 INDENTED("Float Literal: %f\n", node->float_literal.floatValue);
@@ -117,9 +119,11 @@ void ast_print(struct astnode *node, size_t level)
                                 INDENTED("Variable Declaration");
                         }
 
-                        printf(" '%s' [", node->declaration.identifier);
-                        type_print(node->declaration.type);
-                        printf("]");
+                        char *s = astdtype_string(node->declaration.type);
+
+                        printf(" '%s' [%s]", node->declaration.identifier, s);
+
+                        free(s);
 
                         if (!node->declaration.value) {
                                 printf("\n");
@@ -145,9 +149,9 @@ void ast_print(struct astnode *node, size_t level)
                         break;
 
                 case NODE_FUNCTION_DEFINITION:
-                INDENTED("Function Definition '%s' of ", node->function_def.identifier);
-                        type_print(node->function_def.type);
-                        printf(":\n");
+                        s = astdtype_string(node->function_def.type);
+                        INDENTED("Function Definition '%s' of %s:\n", node->function_def.identifier, s);
+                        free(s);
                         ast_print(node->function_def.params, level + 1);
                         if (node->function_def.capture)
                                 ast_print(node->function_def.capture, level + 1);
@@ -170,36 +174,4 @@ void ast_print(struct astnode *node, size_t level)
         }
 
 #undef INDENTED
-}
-
-void type_print(struct astdtype *type)
-{
-        if (!type) {
-                printf("Unknown type");
-                return;
-        }
-
-        switch (type->type) {
-                case ASTDTYPE_CUSTOM:
-                        printf("%s", type->custom.name);
-                        break;
-
-                case ASTDTYPE_VOID:
-                        printf("void");
-                        break;
-
-                case ASTDTYPE_BUILTIN:
-                        printf("%s", builtin_string(type->builtin.datatype));
-                        break;
-
-                case ASTDTYPE_POINTER:
-                        printf("ptr(");
-                        type_print(type->pointer.to);
-                        printf(")");
-                        break;
-
-                default:
-                        printf("( Unknown Type )");
-                        break;
-        }
 }
