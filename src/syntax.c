@@ -57,9 +57,6 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
 
                 if (strcmp(p->current.value, "var") == 0)
                         return parse_variable_declaration(p);
-
-                if (strcmp(p->current.value, "func") == 0)
-                        return parse_function_definition(p);
         }
 
         if (p->current.type == LX_LBRACE)
@@ -710,6 +707,9 @@ struct astnode *parse_atom(struct parser *p)
 
                 return expr;
         }
+
+        if (p->current.type == LX_IDEN && strcmp(p->current.value, "func") == 0)
+                return parse_function_definition(p);
 
         if (p->current.type == LX_STRING)
                 return parse_string_literal(p);

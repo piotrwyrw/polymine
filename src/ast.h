@@ -170,6 +170,7 @@ enum astdtype_type : uint8_t {
         ASTDTYPE_POINTER,
         ASTDTYPE_BUILTIN,
         ASTDTYPE_CUSTOM,
+        ASTDTYPE_LAMBDA
 };
 
 /**
@@ -190,6 +191,11 @@ struct astdtype {
                 struct {
                         char *name;
                 } custom;
+
+                struct {
+                        struct astnode *paramTypes;
+                        struct astdtype *returnType;
+                } lambda;
         };
 };
 
@@ -204,6 +210,8 @@ struct astdtype *astdtype_builtin(enum builtin_type);
 struct astdtype *astdtype_void();
 
 struct astdtype *astdtype_custom(char *);
+
+struct astdtype *astdtype_lambda(struct astnode *, struct astdtype *);
 
 char *astdtype_string(struct astdtype *);
 

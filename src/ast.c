@@ -88,6 +88,14 @@ struct astdtype *astdtype_custom(char *name)
         return wrapper;
 }
 
+struct astdtype *astdtype_lambda(struct astnode *paramTypes, struct astdtype *returnType)
+{
+        struct astdtype *type = astdtype_generic(ASTDTYPE_LAMBDA);
+        type->lambda.paramTypes = paramTypes;
+        type->lambda.returnType = returnType;
+        return type;
+}
+
 #define MAX_TYPENAME_LENGTH 200
 
 char typename[200] = {0};
