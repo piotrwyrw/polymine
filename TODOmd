@@ -1,6 +1,6 @@
 ## To-Do
-Create a global function index. Ensure function names are
-    a) Unique and
-    b) Make logical sense wrt. to the super function in case of nested functions
-
-Add a function type (for function references, pointers)
+1) Turn the function definition into a proper expression atom (both parser and semantics level)
+2) Thus introduce a new data type for function definitions. This type should not only hold the return type of the
+   function, but also the types of the individual parameters.
+3) On the semantic analysis level: Allow function definitions to be assigned to a variable. Prevent definitions
+   from ever constituting a part of a binary expression. Ensure type compatibility in assignments, function calls, etc.

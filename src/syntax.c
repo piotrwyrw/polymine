@@ -506,6 +506,73 @@ struct astdtype *parse_type(struct parser *p)
                 return NULL;
         }
 
+//        if (strcmp(p->current.value, "function") == 0) {
+//                parser_advance(p);
+//
+//                if (p->current.type != LX_LPAREN) {
+//                        printf("Expected '(' after function_def type. Got %s (\"%s\") on line %ld.\n",
+//                               lxtype_string(p->current.type), p->current.value, p->line);
+//                        return NULL;
+//                }
+//
+//                parser_advance(p);
+//
+//                struct astnode *pTypes = astnode_empty_compound(p->line, p->block);
+//
+//                while (p->current.type != LX_UNDEFINED) {
+//                        if (p->current.type == LX_RPAREN) {
+//                                parser_advance(p);
+//                                break;
+//                        }
+//
+//                        if (p->current.type != LX_IDEN) {
+//                                printf("Expected function_def parameter type. Got %s (\"%s\") on line %ld.\n",
+//                                       lxtype_string(p->current.type), p->current.value, p->line);
+//                                astnode_free(pTypes);
+//                                return NULL;
+//                        }
+//
+//                        parser_advance(p);
+//
+//                        if (p->current.type == LX_COMMA) {
+//                                parser_advance(p);
+//                                continue;
+//                        }
+//
+//                        if (p->current.type == LX_RPAREN) {
+//                                parser_advance(p);
+//                                break;
+//                        }
+//
+//                        printf("Expected ',' and more function_def parameter types. Got %s (\"%s\") on line %ld.\n",
+//                               lxtype_string(p->current.type), p->current.value, p->line);
+//
+//                        astnode_free(pTypes);
+//
+//                        return NULL;
+//                }
+//
+//                if (p->current.type != LX_MOV_RIGHT) {
+//                        printf("Expected '->' after function_def parameters. Got %s (\"%s\") on line %ld.\n",
+//                               lxtype_string(p->current.type), p->current.value, p->line);
+//
+//                        astnode_free(pTypes);
+//
+//                        return NULL;
+//                }
+//
+//                parser_advance(p);
+//
+//                struct astdtype *type = parse_type(p);
+//
+//                if (!type) {
+//                        astnode_free(pTypes);
+//                        return NULL;
+//                }
+//
+//                return astdtype_function_def(type, pTypes);
+//        }
+
         if (strcmp(p->current.value, "void") == 0) {
                 parser_advance(p);
 
