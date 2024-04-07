@@ -3,6 +3,10 @@
 
 #include "ast.h"
 
+#ifndef FUNCTION_ID
+#define FUNCTION_ID(id) ((id) != NULL ? (id) : "<anonymous function>")
+#endif
+
 struct semantics;
 
 _Bool analyze_program(struct semantics *, struct astnode *);

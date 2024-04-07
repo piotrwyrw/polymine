@@ -3,6 +3,7 @@
 //
 
 #include "util.h"
+#include "semantics.h"
 
 #include <string.h>
 #include <math.h>
@@ -150,7 +151,7 @@ void ast_print(struct astnode *node, size_t level)
 
                 case NODE_FUNCTION_DEFINITION:
                         s = astdtype_string(node->function_def.type);
-                        INDENTED("Function Definition '%s' of %s:\n", node->function_def.identifier, s);
+                        INDENTED("Function Definition '%s' of %s:\n", FUNCTION_ID(node->function_def.identifier), s);
                         free(s);
                         ast_print(node->function_def.params, level + 1);
                         if (node->function_def.capture)
@@ -164,7 +165,7 @@ void ast_print(struct astnode *node, size_t level)
                         break;
 
                 case NODE_RESOLVE:
-                INDENTED("Resolve (%s):\n", node->resolve.function ? node->resolve.function : "Not yet analysed");
+                INDENTED("Resolve (%s):\n", node->resolve.function ? FUNCTION_ID(node->resolve.function->function_def.identifier) : "(Not yet analyzed)");
                         ast_print(node->resolve.value, level + 1);
                         break;
 

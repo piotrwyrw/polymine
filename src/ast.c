@@ -299,7 +299,8 @@ void astnode_free(struct astnode *node)
                         astnode_free(node->assignment.value);
                         break;
                 case NODE_FUNCTION_DEFINITION:
-                        free(node->function_def.identifier);
+                        if (node->function_def.identifier)
+                                free(node->function_def.identifier);
                         astnode_free(node->function_def.params);
                         astnode_free(node->function_def.block);
                         astnode_free(node->function_def.capture);
@@ -476,7 +477,7 @@ struct astnode *astnode_assignment(size_t line, struct astnode *block, char *ide
 struct astnode *astnode_function_definition(size_t line, struct astnode *superblock, char *identifier, struct astnode *parameters, struct astdtype *type, struct astnode *capture, struct astnode *block)
 {
         struct astnode *node = astnode_generic(NODE_FUNCTION_DEFINITION, line, superblock);
-        node->function_def.identifier = strdup(identifier);
+        node->function_def.identifier = identifier ? strdup(identifier) : NULL;
         node->function_def.params = parameters;
         node->function_def.type = type;
         node->function_def.block = block;

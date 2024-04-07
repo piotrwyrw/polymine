@@ -346,24 +346,26 @@ struct astnode *parse_function_parameters(struct parser *p)
 struct astnode *parse_function_definition(struct parser *p)
 {
         if (p->current.type != LX_IDEN) {
-                printf("Expected 'func' keyword at the start of a function definition. Got %s (\"%s\") on line %ld.\n",
+                printf("Expected 'func' or 'anon' keyword at the start of a function definition. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
         }
 
+        _Bool anon = strcmp(p->current.value, "anon") == 0;
         size_t line = p->line;
 
         parser_advance(p);
 
-        if (p->current.type != LX_IDEN) {
+        if (p->current.type != LX_IDEN && !anon) {
                 printf("Expected function identifier after func keyword. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
         }
 
-        char *id = strdup(p->current.value);
+        char *id = anon ? NULL : strdup(p->current.value);
 
-        parser_advance(p);
+        if (!anon)
+                parser_advance(p);
 
         struct astnode *params = NULL;
 
@@ -730,7 +732,7 @@ struct astnode *parse_atom(struct parser *p)
                 return expr;
         }
 
-        if (p->current.type == LX_IDEN && strcmp(p->current.value, "func") == 0)
+        if (p->current.type == LX_IDEN && (strcmp(p->current.value, "func") == 0 || strcmp(p->current.value, "anon") == 0))
                 return parse_function_definition(p);
 
         if (p->current.type == LX_STRING)

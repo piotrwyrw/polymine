@@ -26,6 +26,9 @@ void semantics_free(struct semantics *sem)
 
 static struct astnode *filter_symbol(char *id, struct astnode *node)
 {
+        if (!id)
+                return NULL;
+
         if (node->type != NODE_SYMBOL)
                 return NULL;
 
@@ -50,9 +53,7 @@ struct astnode *custom_traverse(void *param, void *(*callback)(void *, struct as
                                                      param, callback)))
                         return node;
 
-                if (domain & TRAVERSE_HALT_NESTED && b->holder->type == NODE_FUNCTION_DEFINITION &&
-                    b->holder->function_def.capture) {
-
+                if (domain & TRAVERSE_HALT_NESTED && b->holder && b->holder->type == NODE_FUNCTION_DEFINITION) {
                         if (!(domain & TRAVERSE_GLOBAL_REGARDLESS))
                                 return NULL;
 
@@ -98,7 +99,7 @@ struct astnode *find_enclosing_function(struct astnode *block)
         struct astnode *b = block;
 
         while (b != NULL) {
-                if (b->holder->type == NODE_FUNCTION_DEFINITION)
+                if (b->holder && b->holder->type == NODE_FUNCTION_DEFINITION)
                         return b->holder;
 
                 b = b->super;
@@ -134,6 +135,9 @@ static _Bool types_compatible_advanced(struct astdtype *destination, struct astd
                         return false;
 
                 struct astnode *paramTypes = destination->lambda.paramTypes;
+
+                if (paramTypes->node_compound.count != source->lambda.paramTypes->node_compound.count)
+                        return false;
 
                 for (size_t i = 0; i < paramTypes->node_compound.count; i++)
                         if (!types_compatible(paramTypes->node_compound.array[i]->data_type.adt,

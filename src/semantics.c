@@ -177,16 +177,19 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
 
         struct astnode *sym;
 
-        put_symbol(fdef->super,
-                   (sym = astnode_symbol(fdef->super, SYMBOL_FUNCTION, fdef->function_def.identifier,
-                                         fdef->function_def.type,
-                                         fdef)));
-
-        // Note: We need to copy the symbol here
-        put_symbol(fdef->function_def.block, astnode_copy_symbol(sym));
+        // Anon functions are not declared as symbols (since they're not searchable anyway)
+        if (fdef->function_def.identifier)
+                put_symbol(fdef->function_def.block,
+                           sym = astnode_symbol(fdef->super, SYMBOL_FUNCTION, fdef->function_def.identifier,
+                                                fdef->function_def.type,
+                                                fdef));
 
         if (!analyze_any(sem, fdef->function_def.block))
                 return false;
+
+        // It's important to make the function available in the global scope only after analyzing the function block
+        if (fdef->function_def.identifier)
+                put_symbol(fdef->super, astnode_copy_symbol(sym));
 
         return true;
 }
@@ -199,6 +202,12 @@ static void *analyze_capture_variable(struct astnode *fdef, struct astnode *var)
                 printf("The capture group variable \"%s\" is undefined. Error on line %ld.\n",
                        var->declaration.identifier,
                        var->line);
+                return var;
+        }
+
+        if (symbol->symbol.symtype != SYMBOL_VARIABLE) {
+                printf("The capture group on line %ld references %s \"%s\" as a variable.\n", var->line,
+                       symbol_type_humanstr(symbol->symbol.symtype), symbol->symbol.identifier);
                 return var;
         }
 
@@ -248,7 +257,7 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
                 return false;
         }
 
-        res->resolve.function = function->function_def.identifier;
+        res->resolve.function = function;
 
         return true;
 }
@@ -355,8 +364,26 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
                 return semantics_newtype(sem, astdtype_pointer(exprType));
         }
 
-        if (atom->type == NODE_FUNCTION_DEFINITION)
-                return semantics_newtype(sem, function_def_type(atom));
+        if (atom->type == NODE_FUNCTION_DEFINITION) {
+                struct astdtype *type = semantics_newtype(sem, function_def_type(atom));
+
+                if (atom->holder && atom->holder->type == NODE_BINARY_OP) {
+                        printf("A function definition (or lambda) cannot be part of a binary expression. Violation on line %ld.\n",
+                               atom->line);
+                        return NULL;
+                }
+
+                // Make sure nested functions are marked as nested
+                struct astnode *enclosing;
+
+                if ((enclosing = find_enclosing_function(atom->super)))
+                        atom->holder = enclosing;
+
+                if (!analyze_function_definition(sem, atom))
+                        return NULL;
+
+                return type;
+        }
 
         return NULL;
 }
@@ -367,17 +394,27 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 
         if (!(symbol = find_symbol(call->function_call.identifier, call->super))) {
                 printf("Attempting to call undefined function \"%s\". Error on line %ld.\n",
-                       call->function_call.identifier, call->line);
+                       FUNCTION_ID(call->function_call.identifier), call->line);
                 return NULL;
         }
 
         if (symbol->symbol.symtype != SYMBOL_FUNCTION) {
+                if (symbol->symbol.symtype == SYMBOL_VARIABLE &&
+                    symbol->symbol.node->declaration.value->type == NODE_FUNCTION_DEFINITION)
+                        goto _continue;
+
                 printf("Attempting to call %s \"%s\" as function. Error on line %ld.\n",
-                       symbol_type_humanstr(symbol->symbol.symtype), call->symbol.identifier, call->line);
+                       symbol_type_humanstr(symbol->symbol.symtype), symbol->symbol.identifier, call->line);
                 return NULL;
         }
 
+        _continue:;
+
         struct astnode *definition = symbol->symbol.node;
+
+        // Handle lambdas or function-valued variables
+        if (symbol->symbol.symtype == SYMBOL_VARIABLE)
+                definition = symbol->symbol.node->declaration.value;
 
         size_t required_params = definition->function_def.params->node_compound.count;
         size_t provided_params = call->function_call.values->node_compound.count;
@@ -386,7 +423,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
                 char *typeStr = astdtype_string(definition->function_def.type);
 
                 printf("The function \"%s\" (%s) expects %ld params. %ld Parameters were provided in the call. Error on line %ld\n",
-                       call->function_call.identifier, typeStr, required_params,
+                       FUNCTION_ID(call->function_call.identifier), typeStr, required_params,
                        provided_params, call->line);
 
                 free(typeStr);
@@ -406,7 +443,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 
                         printf("The expression type \"%s\" is not compatible with the parameter number %ld \"%s\" (%s) of function \"%s\". Error on line %ld.\n",
                                exprType, i + 1, param->declaration.identifier, paramType,
-                               definition->function_def.identifier, call->line);
+                               FUNCTION_ID(definition->function_def.identifier), call->line);
 
                         free(paramType);
                         free(exprType);
@@ -417,3 +454,5 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 
         return definition->function_def.type;
 }
+
+#undef FUNCTION_ID
