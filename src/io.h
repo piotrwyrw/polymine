@@ -5,9 +5,9 @@
 #include <stdbool.h>
 
 static struct input_handle {
-	char *path;
-	char *buffer;
-	size_t length;
+        char *path;
+        char *buffer;
+        size_t length;
 } empty_input_handle = {.path = NULL, .buffer = NULL, .length = 0};
 
 /**

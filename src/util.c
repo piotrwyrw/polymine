@@ -165,7 +165,9 @@ void ast_print(struct astnode *node, size_t level)
                         break;
 
                 case NODE_RESOLVE:
-                INDENTED("Resolve (%s):\n", node->resolve.function ? FUNCTION_ID(node->resolve.function->function_def.identifier) : "(Not yet analyzed)");
+                INDENTED("Resolve (%s):\n",
+                         node->resolve.function ? FUNCTION_ID(node->resolve.function->function_def.identifier)
+                                                : "(Not yet analyzed)");
                         ast_print(node->resolve.value, level + 1);
                         break;
 

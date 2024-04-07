@@ -78,7 +78,8 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
 
         // Type-inferred variables must have a value at the time of declaration
         if (!decl->declaration.type && !decl->declaration.value) {
-                printf("Type-inferred variables must be declared with an initial value. Violation on line %ld.\n", decl->line);
+                printf("Type-inferred variables must be declared with an initial value. Violation on line %ld.\n",
+                       decl->line);
                 return false;
         }
 

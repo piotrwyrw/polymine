@@ -6,12 +6,12 @@
 #include "ast.h"
 
 struct parser {
-	struct lxtok current;
-	struct lxtok next;
-	struct lexer *lx;
+        struct lxtok current;
+        struct lxtok next;
+        struct lexer *lx;
         struct astnode *block;
         struct astnode *types; // A compound node
-	size_t line;
+        size_t line;
 };
 
 // This basically tells us where we need to display the error message.
