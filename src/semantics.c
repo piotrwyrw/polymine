@@ -76,6 +76,12 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
         if (symbol_conflict(decl->declaration.identifier, decl))
                 return false;
 
+        // Type-inferred variables must have a value at the time of declaration
+        if (!decl->declaration.type && !decl->declaration.value) {
+                printf("Type-inferred variables must be declared with an initial value. Violation on line %ld.\n", decl->line);
+                return false;
+        }
+
         if (!decl->declaration.value)
                 goto put_and_exit;
 
@@ -85,6 +91,12 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
                 printf("Type evaluation failed for variable \"%s\" on line %ld.\n", decl->declaration.identifier,
                        decl->line);
                 return false;
+        }
+
+        // Type inference
+        if (!decl->declaration.type) {
+                decl->declaration.type = exprType;
+                goto put_and_exit;
         }
 
         if (!types_compatible(decl->declaration.type, exprType)) {

@@ -197,12 +197,21 @@ struct astnode *parse_variable_declaration(struct parser *p)
 
         parser_advance(p);
 
-        struct astdtype *type = parse_type(p);
+        struct astdtype *type = NULL;
+
+        if (p->current.type == LX_ASTERISK) {
+                parser_advance(p);
+                goto no_type;
+        }
+
+        type = parse_type(p);
 
         if (!type) {
                 free(id);
                 return NULL;
         }
+
+        no_type:;
 
         struct astnode *expr = NULL;
 
@@ -732,7 +741,8 @@ struct astnode *parse_atom(struct parser *p)
                 return expr;
         }
 
-        if (p->current.type == LX_IDEN && (strcmp(p->current.value, "func") == 0 || strcmp(p->current.value, "anon") == 0))
+        if (p->current.type == LX_IDEN &&
+            (strcmp(p->current.value, "func") == 0 || strcmp(p->current.value, "anon") == 0))
                 return parse_function_definition(p);
 
         if (p->current.type == LX_STRING)
