@@ -86,6 +86,7 @@ void ast_print(struct astnode *node, size_t level)
                 case NODE_BLOCK:
                 INDENTED("Block:\n");
                         ast_print(node->block.nodes, level + 1);
+                        ast_print(node->block.symbols, level + 1);
                         break;
                 case NODE_COMPOUND:
                 INDENTED("Compound:\n");
@@ -170,6 +171,10 @@ void ast_print(struct astnode *node, size_t level)
                                                 : "(Not yet analyzed)");
                         ast_print(node->resolve.value, level + 1);
                         break;
+
+                case NODE_SYMBOL:
+                INDENTED("Symbol (%s)\n", node->symbol.identifier);
+                break;
 
                 default:
                 INDENTED("( Incorrect node type )\n");

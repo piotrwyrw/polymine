@@ -232,6 +232,8 @@ static void *analyze_capture_variable(struct astnode *fdef, struct astnode *var)
         }
 
         var->declaration.type = symbol->symbol.type;
+        var->declaration.value = symbol->symbol.node;
+
         declare_param_variable(fdef, var);
 
         return NULL;
@@ -413,6 +415,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 
         if (symbol->symbol.symtype != SYMBOL_FUNCTION) {
                 if (symbol->symbol.symtype == SYMBOL_VARIABLE &&
+                    symbol->symbol.node->declaration.value &&
                     symbol->symbol.node->declaration.value->type == NODE_FUNCTION_DEFINITION)
                         goto _continue;
 

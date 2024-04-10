@@ -42,7 +42,7 @@ int main(void)
 
         analyze_program(&sem, node);
         ast_print(node, 0);
-        astnode_free(node);
+//        astnode_free(node);
 
         semantics_free(&sem);
 
