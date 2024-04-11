@@ -523,3 +523,20 @@ struct astnode *astnode_copy_symbol(struct astnode *sym)
         return astnode_symbol(sym->super, sym->symbol.symtype, sym->symbol.identifier, sym->symbol.type,
                               sym->symbol.node);
 }
+
+struct astnode *astnode_wrap(struct astnode *n)
+{
+        struct astnode *node = astnode_generic(NODE_WRAPPED, 0, NULL);
+        node->wrapped_node.node = n;
+        return node;
+}
+
+struct astnode *astnode_unwrap(struct astnode *node)
+{
+        struct astnode *n = node;
+
+        while (n->type == NODE_WRAPPED)
+                n = n->wrapped_node.node;
+
+        return n;
+}

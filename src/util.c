@@ -86,7 +86,7 @@ void ast_print(struct astnode *node, size_t level)
                 case NODE_BLOCK:
                 INDENTED("Block:\n");
                         ast_print(node->block.nodes, level + 1);
-                        ast_print(node->block.symbols, level + 1);
+//                        ast_print(node->block.symbols, level + 1);
                         break;
                 case NODE_COMPOUND:
                 INDENTED("Compound:\n");

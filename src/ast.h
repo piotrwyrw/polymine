@@ -29,7 +29,10 @@ enum nodetype : uint8_t {
         NODE_DATA_TYPE,
 
         // Semantic stuff
-        NODE_SYMBOL
+        NODE_SYMBOL,
+
+        // Memory safety
+        NODE_WRAPPED
 };
 
 const char *nodetype_string(enum nodetype);
@@ -140,13 +143,17 @@ struct astnode {
                 } resolve;
 
                 // Stuff for semantic analysis
-
                 struct {
                         enum symbol_type symtype;
                         char *identifier;
                         struct astdtype *type;
                         struct astnode *node;
                 } symbol;
+
+                // Memory safety features
+                struct {
+                        struct astnode *node;
+                } wrapped_node;
         };
 };
 
@@ -198,8 +205,6 @@ struct astdtype {
                 } lambda;
         };
 };
-
-extern _Bool freeDataTypes;
 
 void astdtype_free(struct astdtype *);
 
@@ -267,5 +272,19 @@ struct astnode *astnode_data_type(struct astdtype *);
 struct astnode *astnode_symbol(struct astnode *, enum symbol_type, char *, struct astdtype *, struct astnode *);
 
 struct astnode *astnode_copy_symbol(struct astnode *);
+
+// Memory safety --
+
+struct astnode *astnode_wrap(struct astnode *);
+
+struct astnode *astnode_unwrap(struct astnode *);
+
+#ifndef WRAP
+#define WRAP(n) astnode_wrap(n);
+#endif
+
+#ifndef UNWRAP
+#define UNWRAP(n) astnode_unwrap(n);
+#endif
 
 #endif
