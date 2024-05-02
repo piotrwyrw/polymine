@@ -86,7 +86,7 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
         if (!decl->declaration.value)
                 goto put_and_exit;
 
-        struct astdtype *exprType = analyze_expression(sem, decl->declaration.value);
+        struct astdtype *exprType = analyze_expression(sem, UNWRAP(decl->declaration.value));
 
         if (!exprType) {
                 printf("Type evaluation failed for variable \"%s\" on line %ld.\n", decl->declaration.identifier,
@@ -232,7 +232,7 @@ static void *analyze_capture_variable(struct astnode *fdef, struct astnode *var)
         }
 
         var->declaration.type = symbol->symbol.type;
-        var->declaration.value = symbol->symbol.node;
+        var->declaration.value = WRAP(symbol->symbol.node->declaration.value);
 
         declare_param_variable(fdef, var);
 
@@ -416,7 +416,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
         if (symbol->symbol.symtype != SYMBOL_FUNCTION) {
                 if (symbol->symbol.symtype == SYMBOL_VARIABLE &&
                     symbol->symbol.node->declaration.value &&
-                    symbol->symbol.node->declaration.value->type == NODE_FUNCTION_DEFINITION)
+                    UNWRAP(symbol->symbol.node->declaration.value)->type == NODE_FUNCTION_DEFINITION)
                         goto _continue;
 
                 printf("Attempting to call %s \"%s\" as function. Error on line %ld.\n",
@@ -430,7 +430,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 
         // Handle lambdas or function-valued variables
         if (symbol->symbol.symtype == SYMBOL_VARIABLE)
-                definition = symbol->symbol.node->declaration.value;
+                definition = UNWRAP(symbol->symbol.node->declaration.value);
 
         size_t required_params = definition->function_def.params->node_compound.count;
         size_t provided_params = call->function_call.values->node_compound.count;

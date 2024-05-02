@@ -280,11 +280,11 @@ struct astnode *astnode_wrap(struct astnode *);
 struct astnode *astnode_unwrap(struct astnode *);
 
 #ifndef WRAP
-#define WRAP(n) astnode_wrap(n);
+#define WRAP(n) astnode_wrap(n)
 #endif
 
 #ifndef UNWRAP
-#define UNWRAP(n) astnode_unwrap(n);
+#define UNWRAP(n) astnode_unwrap(n)
 #endif
 
 #endif

@@ -50,8 +50,10 @@ int64_t string_to_integer(char *str)
         return output;
 }
 
-void ast_print(struct astnode *node, size_t level)
+void ast_print(struct astnode *_node, size_t level)
 {
+        struct astnode *node = UNWRAP(_node);
+
         char indent[level + 1];
         memset(indent, '\t', level);
         indent[level] = '\0';
