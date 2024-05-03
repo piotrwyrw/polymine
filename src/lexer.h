@@ -29,6 +29,7 @@ enum lxtype : uint8_t {
         LX_SHR,
         LX_MOV_LEFT,
         LX_MOV_RIGHT,
+        LX_DOUBLE_OR,
 
         LX_EQUALS,
         LX_LSQUARE,
@@ -43,6 +44,7 @@ enum lxtype : uint8_t {
         LX_PLUS,
         LX_SLASH,
         LX_ASTERISK,
+        LX_QUESTION_MARK,
         LX_AMPERSAND,
         LX_POW,
         LX_MOD,

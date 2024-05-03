@@ -312,6 +312,10 @@ void astnode_free(struct astnode *node)
                 case NODE_RESOLVE:
                         astnode_free(node->resolve.value);
                         break;
+                case NODE_IF:
+                        astnode_free(node->if_statement.expr);
+                        astnode_free(node->if_statement.block);
+                        break;
 //                case NODE_DATA_TYPE:
 //                        if (!freeDataTypes)
 //                                break;
@@ -508,6 +512,21 @@ struct astnode *astnode_data_type(struct astdtype *type)
         return node;
 }
 
+struct astnode *astnode_void_placeholder(size_t line, struct astnode *block)
+{
+        struct astnode *node = astnode_generic(NODE_VOID_PLACEHOLDER, line, block);
+        return node;
+}
+
+struct astnode *astnode_if(size_t line, struct astnode *super, struct astnode *expr, struct astnode *if_block, struct astnode *next)
+{
+        struct astnode *node = astnode_generic(NODE_IF, line, super);
+        node->if_statement.block = if_block;
+        node->if_statement.expr = expr;
+        node->if_statement.next_branch = next;
+        return node;
+}
+
 struct astnode *astnode_symbol(struct astnode *block, enum symbol_type t, char *id, struct astdtype *type, struct astnode *orig)
 {
         struct astnode *node = astnode_generic(NODE_SYMBOL, block->line, block);
@@ -533,6 +552,9 @@ struct astnode *astnode_wrap(struct astnode *n)
 
 struct astnode *astnode_unwrap(struct astnode *node)
 {
+        if (!node)
+                return NULL;
+
         struct astnode *n = node;
 
         while (n->type == NODE_WRAPPED)

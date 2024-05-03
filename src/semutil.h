@@ -11,6 +11,7 @@ struct semantics {
         struct astdtype *int64;
         struct astdtype *_double;
         struct astdtype *byte;
+        struct astdtype *_void;
 
         struct astnode *types;
 };
@@ -40,7 +41,11 @@ struct astnode *find_enclosing_function(struct astnode *);
 
 void put_symbol(struct astnode *, struct astnode *);
 
+_Bool is_uppermost_block(struct astnode *);
+
 _Bool types_compatible(struct astdtype *, struct astdtype *);
+
+_Bool is_compile_time(struct astdtype *);
 
 size_t quantify_type_size(struct astdtype *);
 

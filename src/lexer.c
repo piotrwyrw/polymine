@@ -25,6 +25,7 @@ const char *lxtype_string(enum lxtype type)
                 AUTO_CASE(LX_SHR)
                 AUTO_CASE(LX_MOV_LEFT)
                 AUTO_CASE(LX_MOV_RIGHT)
+                AUTO_CASE(LX_DOUBLE_OR)
                 AUTO_CASE(LX_EQUALS)
                 AUTO_CASE(LX_LSQUARE)
                 AUTO_CASE(LX_RSQUARE)
@@ -268,6 +269,7 @@ _Bool special_constr(struct lexer *lx, struct lxtok *tok)
         SUBMIT_TYPE_ON(">>", LX_SHR);
         SUBMIT_TYPE_ON("<-", LX_MOV_LEFT);
         SUBMIT_TYPE_ON("->", LX_MOV_RIGHT);
+        SUBMIT_TYPE_ON("||", LX_DOUBLE_OR)
 
 #undef SUBMIT_TYPE_ON
 #define SUBMIT_TYPE_ON(cmpc, t)                        \
@@ -295,6 +297,7 @@ _Bool special_constr(struct lexer *lx, struct lxtok *tok)
         SUBMIT_TYPE_ON('+', LX_PLUS);
         SUBMIT_TYPE_ON('/', LX_SLASH);
         SUBMIT_TYPE_ON('*', LX_ASTERISK);
+        SUBMIT_TYPE_ON('?', LX_QUESTION_MARK);
         SUBMIT_TYPE_ON('&', LX_AMPERSAND);
         SUBMIT_TYPE_ON('^', LX_POW);
         SUBMIT_TYPE_ON('%', LX_MOD);
@@ -343,7 +346,7 @@ _Bool escape_sequence(struct lexer *lx, char *buffer, size_t *buffIdx)
                 case '\"':
                         subst = '\"';
                         break;
-                defaul:
+                default:
                         return false;
         }
 

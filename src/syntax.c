@@ -57,6 +57,9 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
 
                 if (strcmp(p->current.value, "var") == 0)
                         return parse_variable_declaration(p);
+
+                if (strcmp(p->current.value, "if") == 0)
+                        return parse_if(p);
         }
 
         if (p->current.type == LX_LBRACE)
@@ -188,30 +191,21 @@ struct astnode *parse_variable_declaration(struct parser *p)
 
         parser_advance(p);
 
-        if (p->current.type != LX_COLON) {
-                printf("Expected ':' after variable identifier \"%s\". Got %s (\"%s\") on line %ld.\n", id,
-                       lxtype_string(p->current.type), p->current.value, p->line);
-                free(id);
-                return NULL;
-        }
-
-        parser_advance(p);
-
         struct astdtype *type = NULL;
 
-        if (p->current.type == LX_ASTERISK) {
+        if (p->current.type == LX_COLON) {
                 parser_advance(p);
-                goto no_type;
+
+                if (p->current.type != LX_QUESTION_MARK) {
+                        type = parse_type(p);
+
+                        if (!type) {
+                                free(id);
+                                return NULL;
+                        }
+                } else
+                        parser_advance(p);
         }
-
-        type = parse_type(p);
-
-        if (!type) {
-                free(id);
-                return NULL;
-        }
-
-        no_type:;
 
         struct astnode *expr = NULL;
 
@@ -355,7 +349,7 @@ struct astnode *parse_function_parameters(struct parser *p)
 struct astnode *parse_function_definition(struct parser *p)
 {
         if (p->current.type != LX_IDEN) {
-                printf("Expected 'func' or 'anon' keyword at the start of a function definition. Got %s (\"%s\") on line %ld.\n",
+                printf("Expected 'fn' or 'anon' keyword at the start of a function definition. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
         }
@@ -387,8 +381,8 @@ struct astnode *parse_function_definition(struct parser *p)
         } else
                 params = astnode_empty_compound(p->line, p->block);
 
-        if (p->current.type != LX_IDEN || strcmp(p->current.value, "of") != 0) {
-                printf("Expected 'of' after function parameter block. Got %s (\"%s\") on line %ld.\n",
+        if (p->current.type != LX_MOV_RIGHT) {
+                printf("Expected '->' after function parameter block. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 free(id);
                 astnode_free(params);
@@ -407,15 +401,7 @@ struct astnode *parse_function_definition(struct parser *p)
 
         struct astnode *capture = NULL;
 
-        if (p->current.type == LX_IDEN) {
-                if (strcmp(p->current.value, "captures") != 0) {
-                        printf("Expected 'captures' followed by a capture group, or the function block after ther type. Got %s (\"%s\") on line %ld.\n",
-                               lxtype_string(p->current.type), p->current.value, p->line);
-                        free(id);
-                        astnode_free(params);
-                        return NULL;
-                }
-
+        if (p->current.type == LX_DOUBLE_OR) {
                 parser_advance(p);
 
                 capture = astnode_empty_compound(p->line, p->block);
@@ -498,10 +484,78 @@ struct astnode *parse_resolve(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *resv = astnode_resolve(line, p->block, parse_expr(p));
-        resv->resolve.value->holder = resv;
+        struct astnode *expr;
 
+        if (p->current.type == LX_SEMI) {
+                expr = astnode_void_placeholder(p->line, p->block);
+                parser_advance(p);
+        } else {
+                expr = parse_expr(p);
+                if (!expr)
+                        return NULL;
+        }
+
+        struct astnode *resv = astnode_resolve(line, p->block, expr);
+        resv->resolve.value->holder = resv;
         return resv;
+}
+
+struct astnode *parse_if(struct parser *p)
+{
+        if (p->current.type != LX_IDEN || strcmp(p->current.value, "if") != 0) {
+                printf("Expected 'if' at the start of an if-statement. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astnode *expr = parse_expr(p);
+
+        if (!expr)
+                return NULL;
+
+        struct astnode *block = parse_block(p);
+
+        struct astnode *base = astnode_if(p->line, p->block, expr, block, NULL);
+        struct astnode *branch_tip = base;
+
+        while (p->current.type == LX_IDEN && strcmp(p->current.value, "else") == 0) {
+                struct astnode *branch;
+
+                parser_advance(p);
+
+                struct astnode *branch_condition = NULL;
+                struct astnode *branch_block;
+
+                if (p->current.type == LX_IDEN && strcmp(p->current.value, "if") == 0) {
+                        parser_advance(p);
+                        branch_condition = parse_expr(p);
+                        if (!branch_condition) {
+                                astnode_free(base);
+                                return NULL;
+                        }
+                }
+
+                branch_block = parse_block(p);
+
+                if (!branch_block) {
+                        astnode_free(branch_condition);
+                        astnode_free(base);
+                        return NULL;
+                }
+
+                branch = astnode_if(p->line, p->block, branch_condition, branch_block, NULL);
+                branch_tip->if_statement.next_branch = branch;
+                branch_tip = branch;
+
+                // The branch condition being NULL implies that this is the final branch (ELSE)
+                // Thus, we don't need to look any further for more branches.
+                if (!branch_condition)
+                        break;
+        }
+
+        return base;
 }
 
 static struct astdtype *actually_parse_type(struct parser *p)
@@ -587,8 +641,6 @@ static struct astdtype *actually_parse_type(struct parser *p)
 
                 struct astdtype *lambda = astdtype_lambda(pTypes, type);
 
-//                astnode_push_compound(p->types, astnode_data_type(lambda));
-
                 return lambda;
         }
 
@@ -596,7 +648,6 @@ static struct astdtype *actually_parse_type(struct parser *p)
                 parser_advance(p);
 
                 struct astdtype *v = astdtype_void();
-//                astnode_push_compound(p->types, astnode_data_type(v));
 
                 return v;
         }
@@ -609,7 +660,6 @@ static struct astdtype *actually_parse_type(struct parser *p)
                 parser_advance(p);
 
                 struct astdtype *builtin = astdtype_builtin(bt);
-//                astnode_push_compound(p->types, astnode_data_type(builtin));
 
                 return builtin;
         }
@@ -639,7 +689,6 @@ static struct astdtype *actually_parse_type(struct parser *p)
                 parser_advance(p);
 
                 struct astdtype *pointer = astdtype_pointer(enclosed);
-//                astnode_push_compound(p->types, astnode_data_type(pointer));
 
                 return pointer;
         }
@@ -742,7 +791,7 @@ struct astnode *parse_atom(struct parser *p)
         }
 
         if (p->current.type == LX_IDEN &&
-            (strcmp(p->current.value, "func") == 0 || strcmp(p->current.value, "anon") == 0))
+            (strcmp(p->current.value, "fn") == 0 || strcmp(p->current.value, "anon") == 0))
                 return parse_function_definition(p);
 
         if (p->current.type == LX_STRING)

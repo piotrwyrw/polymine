@@ -174,9 +174,20 @@ void ast_print(struct astnode *_node, size_t level)
                         ast_print(node->resolve.value, level + 1);
                         break;
 
+                case NODE_IF:
+                INDENTED("Conditional If:\n");
+                        ast_print(node->if_statement.expr, level + 1);
+                        ast_print(node->if_statement.block, level + 1);
+                        ast_print(node->if_statement.next_branch, level + 1);
+                        break;
+
                 case NODE_SYMBOL:
                 INDENTED("Symbol (%s)\n", node->symbol.identifier);
-                break;
+                        break;
+
+                case NODE_VOID_PLACEHOLDER:
+                INDENTED("( Void - Nothing )\n");
+                        break;
 
                 default:
                 INDENTED("( Incorrect node type )\n");

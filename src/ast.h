@@ -27,6 +27,8 @@ enum nodetype : uint8_t {
         NODE_FUNCTION_CALL,
         NODE_RESOLVE,
         NODE_DATA_TYPE,
+        NODE_VOID_PLACEHOLDER,  // Used in place of 'NULL' e.g. for resolve statements with the return type void
+        NODE_IF,
 
         // Semantic stuff
         NODE_SYMBOL,
@@ -57,6 +59,11 @@ enum symbol_type {
 };
 
 char *symbol_type_humanstr(enum symbol_type);
+
+enum fdef_flags : uint8_t {
+        FLAG_PRIMARY = (1 << 0),
+        FLAG_NO_RETURN_CHECKS = (1 << 1)
+};
 
 struct astdtype;
 
@@ -130,6 +137,7 @@ struct astnode {
                         struct astdtype *type;
                         struct astnode *capture; // And so is this!
                         struct astnode *block;
+                        enum fdef_flags flags;
                 } function_def;
 
                 struct {
@@ -141,6 +149,12 @@ struct astnode {
                         struct astnode *value;
                         struct astnode *function; // Managed by the semantic analysis
                 } resolve;
+
+                struct {
+                        struct astnode *expr;
+                        struct astnode *block;
+                        struct astnode *next_branch;
+                } if_statement;
 
                 // Stuff for semantic analysis
                 struct {
@@ -266,6 +280,10 @@ struct astnode *astnode_function_call(size_t, struct astnode *, char *, struct a
 struct astnode *astnode_resolve(size_t, struct astnode *, struct astnode *);
 
 struct astnode *astnode_data_type(struct astdtype *);
+
+struct astnode *astnode_void_placeholder(size_t, struct astnode *);
+
+struct astnode *astnode_if(size_t, struct astnode *, struct astnode *, struct astnode *, struct astnode *);
 
 // Semantic nodes --
 

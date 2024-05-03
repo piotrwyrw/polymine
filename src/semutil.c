@@ -11,6 +11,7 @@ void semantics_init(struct semantics *sem, struct astnode *types)
         sem->int64 = astdtype_builtin(BUILTIN_INT64);
         sem->byte = astdtype_builtin(BUILTIN_GENERIC_BYTE);
         sem->_double = astdtype_builtin(BUILTIN_DOUBLE);
+        sem->_void = astdtype_void();
         sem->types = types;
 }
 
@@ -22,6 +23,7 @@ void semantics_free(struct semantics *sem)
         astdtype_free(sem->int64);
         astdtype_free(sem->byte);
         astdtype_free(sem->_double);
+        astdtype_free(sem->_void);
 }
 
 static struct astnode *filter_symbol(char *id, struct astnode *node)
@@ -113,6 +115,14 @@ void put_symbol(struct astnode *block, struct astnode *symbol)
         astnode_push_compound(block->block.symbols, symbol);
 }
 
+_Bool is_uppermost_block(struct astnode *block)
+{
+        if (block->super)
+                return false;
+
+        return true;
+}
+
 /**
  * @param pointer - The types must be an EXACT match
  */
@@ -161,6 +171,13 @@ static _Bool types_compatible_advanced(struct astdtype *destination, struct astd
 _Bool types_compatible(struct astdtype *destination, struct astdtype *source)
 {
         return types_compatible_advanced(destination, source, false);
+}
+
+_Bool is_compile_time(struct astdtype *type) {
+        if (type->type != ASTDTYPE_LAMBDA)
+                return true;
+
+        return false;
 }
 
 size_t quantify_type_size(struct astdtype *type)

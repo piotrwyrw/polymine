@@ -15,6 +15,8 @@ _Bool analyze_compound(struct semantics *, struct astnode *);
 
 _Bool analyze_any(struct semantics *, struct astnode *);
 
+_Bool analyze_if(struct semantics *, struct astnode *);
+
 _Bool analyze_variable_declaration(struct semantics *, struct astnode *);
 
 _Bool analyze_function_definition(struct semantics *, struct astnode *);
