@@ -70,7 +70,7 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                 case NODE_VARIABLE_USE:
                 case NODE_FUNCTION_CALL:
                 case NODE_POINTER:
-                        return analyze_expression(sem, node) != NULL;
+                        return analyze_expression(sem, node, NULL) != NULL;
                 case NODE_VARIABLE_ASSIGNMENT:
                         return analyze_assignment(sem, node);
                 case NODE_RESOLVE:
@@ -85,13 +85,16 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
 
 _Bool analyze_if(struct semantics *sem, struct astnode *_if)
 {
-        struct astdtype *type = analyze_expression(sem, _if->if_statement.expr);
+        struct astdtype *type = analyze_expression(sem, _if->if_statement.expr, NULL);
 
         if (type->type != ASTDTYPE_BUILTIN && type->type != ASTDTYPE_POINTER) {
                 printf("The if-expression on line %ld is invalid: The expression must evaluate to an effective builtin type.\n",
                        _if->line);
                 return false;
         }
+
+        if (!analyze_block(sem, _if->if_statement.block))
+                return false;
 
         return true;
 }
@@ -116,7 +119,9 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
         if (!decl->declaration.value)
                 goto put_and_exit;
 
-        struct astdtype *exprType = analyze_expression(sem, UNWRAP(decl->declaration.value));
+        _Bool compile_time;
+
+        struct astdtype *exprType = analyze_expression(sem, UNWRAP(decl->declaration.value), &compile_time);
 
         if (!exprType) {
                 printf("Type evaluation failed for variable \"%s\" on line %ld.\n", decl->declaration.identifier,
@@ -129,11 +134,11 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
                 return false;
         }
 
-        if (!is_compile_time(exprType) && is_uppermost_block(decl->super)) {
-                char *typeStr = astdtype_string(exprType);
-                printf("The type %s is not a compile-time constant and thus it may not be used in a global variable.\n",
-                       typeStr);
-                free(typeStr);
+        _Bool uppermost = is_uppermost_block(decl->super);
+
+        if (!compile_time && uppermost) {
+                printf("The value of variable \"%s\" is not strictly a compile-time constant and thus may not be used as the initial value of a global variable.\n",
+                       decl->declaration.identifier);
                 return false;
         }
 
@@ -181,7 +186,7 @@ _Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
                 return false;
         }
 
-        struct astdtype *exprType = analyze_expression(sem, assignment->assignment.value);
+        struct astdtype *exprType = analyze_expression(sem, assignment->assignment.value, NULL);
 
         if (!exprType) {
                 printf("Type validation of assignment expression failed on line %ld.\n", assignment->line);
@@ -253,6 +258,18 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         if (!analyze_any(sem, fdef->function_def.block))
                 return false;
 
+
+        if (has_attribute(fdef->function_def.attributes, "no_return_checks"))
+                goto skip_return_checks;
+
+        if (!fdef->function_def.conditionless_resolve && fdef->function_def.type->type != ASTDTYPE_VOID) {
+                printf("The non-void function \"%s\" declared on line %ld does not have an always-reachable resolve statement.\n",
+                       FUNCTION_ID(fdef->function_def.identifier), fdef->line);
+                return false;
+        }
+
+        skip_return_checks:
+
         // It's important to make the function available in the global scope only after analyzing the function block
         if (fdef->function_def.identifier)
                 put_symbol(fdef->super, astnode_copy_symbol(sym));
@@ -300,7 +317,7 @@ _Bool analyze_capture_group(struct semantics *sem, struct astnode *fdef)
 
 _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
 {
-        struct astdtype *type = analyze_expression(sem, res->resolve.value);
+        struct astdtype *type = analyze_expression(sem, res->resolve.value, NULL);
         struct astnode *function;
 
         if (!type)
@@ -325,25 +342,32 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
                 return false;
         }
 
+        if (!find_uncertain_reachability_structures(res->super))
+                function->function_def.conditionless_resolve = true;
+
         res->resolve.function = function;
 
         return true;
 }
 
-struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr)
+struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr, _Bool *compile_time)
 {
+        // The default state is true. This might change during the recursive call chain
+        if (compile_time)
+                *compile_time = true;
+
         switch (expr->type) {
                 case NODE_BINARY_OP:
-                        return analyze_binary_expression(sem, expr);
+                        return analyze_binary_expression(sem, expr, compile_time);
                 case NODE_VARIABLE_USE:
-                        return analyze_variable_use(sem, expr);
+                        return analyze_variable_use(sem, expr, compile_time);
                 case NODE_INTEGER_LITERAL:
                 case NODE_FLOAT_LITERAL:
                 case NODE_STRING_LITERAL:
                 case NODE_FUNCTION_CALL:
                 case NODE_POINTER:
                 case NODE_FUNCTION_DEFINITION:
-                        return analyze_atom(sem, expr);
+                        return analyze_atom(sem, expr, compile_time);
                 case NODE_VOID_PLACEHOLDER:
                         return sem->_void;
                 default:
@@ -351,10 +375,10 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr)
         }
 }
 
-struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode *bin)
+struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode *bin, _Bool *compile_time)
 {
-        struct astdtype *right = analyze_expression(sem, bin->binary.left);
-        struct astdtype *left = analyze_expression(sem, bin->binary.right);
+        struct astdtype *right = analyze_expression(sem, bin->binary.left, compile_time);
+        struct astdtype *left = analyze_expression(sem, bin->binary.right, compile_time);
 
         if (!left || !right)
                 return NULL;
@@ -377,7 +401,7 @@ struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode
         return type;
 }
 
-struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use)
+struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use, _Bool *compile_time)
 {
         struct astnode *symbol;
 
@@ -396,7 +420,7 @@ struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use
         return symbol->symbol.type;
 }
 
-struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
+struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool *compile_time)
 {
         if (atom->type == NODE_INTEGER_LITERAL) {
                 struct astdtype *type = required_type_integer(sem, atom->integer_literal.integerValue);
@@ -420,11 +444,15 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
                 return sem->int64;
         }
 
-        if (atom->type == NODE_FUNCTION_CALL)
+        if (atom->type == NODE_FUNCTION_CALL) {
+                if (compile_time)
+                        *compile_time = false;
+
                 return analyze_function_call(sem, atom);
+        }
 
         if (atom->type == NODE_POINTER) {
-                struct astdtype *exprType = analyze_expression(sem, atom->pointer.target);
+                struct astdtype *exprType = analyze_expression(sem, atom->pointer.target, compile_time);
 
                 if (!exprType) {
                         printf("Could not create pointer on line %ld: Type checking failed.\n", atom->line);
@@ -442,6 +470,9 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom)
         }
 
         if (atom->type == NODE_FUNCTION_DEFINITION) {
+                if (compile_time)
+                        *compile_time = false;
+
                 struct astdtype *type = semantics_newtype(sem, function_def_type(atom));
 
                 if (atom->holder && atom->holder->type == NODE_BINARY_OP) {
@@ -526,7 +557,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 
         for (size_t i = 0; i < provided_params; i++) {
                 struct astnode *callValue = call->function_call.values->node_compound.array[i];
-                struct astdtype *valueType = analyze_expression(sem, callValue);
+                struct astdtype *valueType = analyze_expression(sem, callValue, NULL);
                 struct astnode *param = definition->function_def.params->node_compound.array[i];
                 struct astdtype *reqParamType = param->declaration.type;
 

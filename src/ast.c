@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-_Bool freeDataTypes = false;
-
 enum builtin_type builtin_from_string(char *str)
 {
 #define RETURN_IF(val, type) \
@@ -51,9 +49,7 @@ void astdtype_free(struct astdtype *adt)
                         free(adt->custom.name);
                         break;
                 case ASTDTYPE_LAMBDA:
-                        freeDataTypes = false;
                         astnode_free(adt->lambda.paramTypes);
-                        freeDataTypes = true;
                         break;
                 default:
                         break;
@@ -304,10 +300,14 @@ void astnode_free(struct astnode *node)
                         astnode_free(node->function_def.params);
                         astnode_free(node->function_def.block);
                         astnode_free(node->function_def.capture);
+                        astnode_free(node->function_def.attributes);
                         break;
                 case NODE_FUNCTION_CALL:
                         free(node->function_call.identifier);
                         astnode_free(node->function_call.values);
+                        break;
+                case NODE_ATTRIBUTE:
+                        free(node->attribute.identifier);
                         break;
                 case NODE_RESOLVE:
                         astnode_free(node->resolve.value);
@@ -478,7 +478,7 @@ struct astnode *astnode_assignment(size_t line, struct astnode *block, char *ide
         return node;
 }
 
-struct astnode *astnode_function_definition(size_t line, struct astnode *superblock, char *identifier, struct astnode *parameters, struct astdtype *type, struct astnode *capture, struct astnode *block)
+struct astnode *astnode_function_definition(size_t line, struct astnode *superblock, char *identifier, struct astnode *parameters, struct astdtype *type, struct astnode *capture, struct astnode *block, struct astnode *attrs)
 {
         struct astnode *node = astnode_generic(NODE_FUNCTION_DEFINITION, line, superblock);
         node->function_def.identifier = identifier ? strdup(identifier) : NULL;
@@ -486,6 +486,8 @@ struct astnode *astnode_function_definition(size_t line, struct astnode *superbl
         node->function_def.type = type;
         node->function_def.block = block;
         node->function_def.capture = capture;
+        node->function_def.conditionless_resolve = false;
+        node->function_def.attributes = attrs;
         return node;
 }
 
@@ -494,6 +496,13 @@ struct astnode *astnode_function_call(size_t line, struct astnode *block, char *
         struct astnode *node = astnode_generic(NODE_FUNCTION_CALL, line, block);
         node->function_call.identifier = strdup(identifier);
         node->function_call.values = values;
+        return node;
+}
+
+struct astnode *astnode_attribute(size_t line, struct astnode *block, char *identifier)
+{
+        struct astnode *node = astnode_generic(NODE_ATTRIBUTE, line, block);
+        node->attribute.identifier = strdup(identifier);
         return node;
 }
 

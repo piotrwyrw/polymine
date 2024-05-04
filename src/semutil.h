@@ -39,13 +39,13 @@ struct astnode *find_symbol_shallow(char *, struct astnode *);
 
 struct astnode *find_enclosing_function(struct astnode *);
 
+struct astnode *find_uncertain_reachability_structures(struct astnode *);
+
 void put_symbol(struct astnode *, struct astnode *);
 
 _Bool is_uppermost_block(struct astnode *);
 
 _Bool types_compatible(struct astdtype *, struct astdtype *);
-
-_Bool is_compile_time(struct astdtype *);
 
 size_t quantify_type_size(struct astdtype *);
 
@@ -56,6 +56,8 @@ struct astdtype *required_type_integer(struct semantics *, int);
 struct astdtype *semantics_newtype(struct semantics *, struct astdtype *);
 
 struct astdtype *function_def_type(struct astnode *);
+
+_Bool has_attribute(struct astnode *, char const *);
 
 /**
  * Note; This will only check for CONFLICTS, thus only in the current block, since

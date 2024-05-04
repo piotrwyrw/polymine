@@ -160,11 +160,16 @@ void ast_print(struct astnode *_node, size_t level)
                         if (node->function_def.capture)
                                 ast_print(node->function_def.capture, level + 1);
                         ast_print(node->function_def.block, level + 1);
+                        ast_print(node->function_def.attributes, level + 1);
                         break;
 
                 case NODE_FUNCTION_CALL:
                 INDENTED("Function Call '%s':\n", node->function_call.identifier);
                         ast_print(node->function_call.values, level + 1);
+                        break;
+
+                case NODE_ATTRIBUTE:
+                INDENTED("Attribute (%s)\n", node->attribute.identifier);
                         break;
 
                 case NODE_RESOLVE:

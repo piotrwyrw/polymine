@@ -25,6 +25,8 @@ struct astnode *parse_resolve(struct parser *);
 
 struct astnode *parse_if(struct parser *);
 
+struct astnode *parse_attributes(struct parser *);
+
 struct astdtype *parse_type(struct parser *);
 
 struct astnode *parse_expr(struct parser *);

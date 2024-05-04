@@ -110,6 +110,31 @@ struct astnode *find_enclosing_function(struct astnode *block)
         return NULL;
 }
 
+
+// Find any control structures (IFs, WHILEs) on the way to the enclosing function that affect
+// the potential reachability of a resolve statement
+struct astnode *find_uncertain_reachability_structures(struct astnode *block)
+{
+        if (block->type != NODE_BLOCK) {
+                printf("find_uncertain_reachability_structures(..): Block is a %s!\n", nodetype_string(block->type));
+                return NULL;
+        }
+
+        struct astnode *b = block;
+
+        while (b != NULL) {
+                if (b->holder && b->holder->type == NODE_FUNCTION_DEFINITION)
+                        return NULL;
+
+                if (b->holder->type == NODE_IF)
+                        return b->holder;
+
+                b = b->super;
+        }
+
+        return NULL;
+}
+
 void put_symbol(struct astnode *block, struct astnode *symbol)
 {
         astnode_push_compound(block->block.symbols, symbol);
@@ -171,13 +196,6 @@ static _Bool types_compatible_advanced(struct astdtype *destination, struct astd
 _Bool types_compatible(struct astdtype *destination, struct astdtype *source)
 {
         return types_compatible_advanced(destination, source, false);
-}
-
-_Bool is_compile_time(struct astdtype *type) {
-        if (type->type != ASTDTYPE_LAMBDA)
-                return true;
-
-        return false;
 }
 
 size_t quantify_type_size(struct astdtype *type)
@@ -266,6 +284,15 @@ struct astdtype *function_def_type(struct astnode *fdef)
                 astnode_push_compound(types, astnode_data_type(params->node_compound.array[i]->declaration.type));
 
         return astdtype_lambda(types, returnType);
+}
+
+_Bool has_attribute(struct astnode *compound, char const *iden)
+{
+        for (size_t i = 0; i < compound->node_compound.count; i ++)
+                if (strcmp(compound->node_compound.array[i]->attribute.identifier, iden) == 0)
+                        return true;
+
+        return false;
 }
 
 struct astnode *symbol_conflict(char *id, struct astnode *node)

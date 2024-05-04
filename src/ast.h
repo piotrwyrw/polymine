@@ -25,6 +25,7 @@ enum nodetype : uint8_t {
         NODE_VARIABLE_ASSIGNMENT,
         NODE_FUNCTION_DEFINITION,
         NODE_FUNCTION_CALL,
+        NODE_ATTRIBUTE,
         NODE_RESOLVE,
         NODE_DATA_TYPE,
         NODE_VOID_PLACEHOLDER,  // Used in place of 'NULL' e.g. for resolve statements with the return type void
@@ -138,12 +139,18 @@ struct astnode {
                         struct astnode *capture; // And so is this!
                         struct astnode *block;
                         enum fdef_flags flags;
+                        _Bool conditionless_resolve; // Managed by Semantic Analysis
+                        struct astnode *attributes; // Compound
                 } function_def;
 
                 struct {
                         char *identifier;
                         struct astnode *values; // And so is this!
                 } function_call;
+
+                struct {
+                        char *identifier;
+                } attribute;
 
                 struct {
                         struct astnode *value;
@@ -273,9 +280,11 @@ struct astnode *astnode_variable(size_t, struct astnode *, char *);
 
 struct astnode *astnode_assignment(size_t, struct astnode *, char *, struct astnode *);
 
-struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *, struct astnode *);
+struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *, struct astnode *, struct astnode *);
 
 struct astnode *astnode_function_call(size_t, struct astnode *, char *, struct astnode *);
+
+struct astnode *astnode_attribute(size_t, struct astnode *, char *);
 
 struct astnode *astnode_resolve(size_t, struct astnode *, struct astnode *);
 

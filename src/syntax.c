@@ -5,6 +5,7 @@
 #include "parser.h"
 #include "syntax.h"
 #include "util.h"
+#include "semutil.h"
 
 #include <string.h>
 
@@ -357,10 +358,21 @@ struct astnode *parse_function_definition(struct parser *p)
         _Bool anon = strcmp(p->current.value, "anon") == 0;
         size_t line = p->line;
 
+        struct astnode *attrs = NULL;
+
         parser_advance(p);
 
+        if (p->current.type == LX_LSQUARE) {
+                attrs = parse_attributes(p);
+                if (!attrs)
+                        return NULL;
+        }
+
+        if (!attrs)
+                attrs = astnode_empty_compound(p->line, p->block);
+
         if (p->current.type != LX_IDEN && !anon) {
-                printf("Expected function identifier after func keyword. Got %s (\"%s\") on line %ld.\n",
+                printf("Expected function identifier after 'fn' keyword. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
         }
@@ -459,7 +471,7 @@ struct astnode *parse_function_definition(struct parser *p)
                 return NULL;
         }
 
-        struct astnode *fdef = astnode_function_definition(line, p->block, id, params, type, capture, block);
+        struct astnode *fdef = astnode_function_definition(line, p->block, id, params, type, capture, block, attrs);
 
         fdef->function_def.params->holder = fdef;
         fdef->function_def.block->holder = fdef;
@@ -518,6 +530,9 @@ struct astnode *parse_if(struct parser *p)
         struct astnode *block = parse_block(p);
 
         struct astnode *base = astnode_if(p->line, p->block, expr, block, NULL);
+
+        block->holder = base;
+
         struct astnode *branch_tip = base;
 
         while (p->current.type == LX_IDEN && strcmp(p->current.value, "else") == 0) {
@@ -546,6 +561,9 @@ struct astnode *parse_if(struct parser *p)
                 }
 
                 branch = astnode_if(p->line, p->block, branch_condition, branch_block, NULL);
+
+                branch_block->holder = branch;
+
                 branch_tip->if_statement.next_branch = branch;
                 branch_tip = branch;
 
@@ -556,6 +574,56 @@ struct astnode *parse_if(struct parser *p)
         }
 
         return base;
+}
+
+struct astnode *parse_attributes(struct parser *p)
+{
+        if (p->current.type != LX_LSQUARE) {
+                printf("Expected '[' at the start of an attribute list, got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astnode *attrs = astnode_empty_compound(p->line, p->block);
+
+        while (p->current.type != LX_RSQUARE) {
+                if (p->current.type != LX_IDEN) {
+                        printf("Expected a comma-separated list of attributes, got %s (\"%s\") on line %ld.\n",
+                               lxtype_string(p->current.type), p->current.value, p->line);
+                        astnode_free(attrs);
+                        return NULL;
+                }
+
+                if (has_attribute(attrs, p->current.value)) {
+                        printf("An attribute cannot be inserted into the list more than once. Error on line %ld for attribute \"%s\".\n",
+                               p->current.line, p->current.value);
+                        return NULL;
+                }
+
+                astnode_push_compound(attrs, astnode_attribute(p->line, p->block, p->current.value));
+
+                parser_advance(p);
+
+                if (p->current.type == LX_COMMA) {
+                        parser_advance(p);
+                        continue;
+                }
+
+                break;
+        }
+
+        if (p->current.type != LX_RSQUARE) {
+                printf("Expected ']' at the end of an attribute list, got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                astnode_free(attrs);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        return attrs;
 }
 
 static struct astdtype *actually_parse_type(struct parser *p)

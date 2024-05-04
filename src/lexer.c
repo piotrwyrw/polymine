@@ -157,7 +157,7 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
                                 goto free_and_exit;
                         }
 
-                        // If we don't know what the current token is, skip it, and return the next one.
+                        // We'll just ignore wrong tokens (for now ..)
                         DEBUG({
                                       printf("Unknown token starting with \"%c\" on line %ld.\n",
                                              lx->input->buffer[lx->position], lx->line);
