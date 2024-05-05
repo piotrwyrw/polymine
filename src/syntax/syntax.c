@@ -61,6 +61,9 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
 
                 if (strcmp(p->current.value, "if") == 0)
                         return parse_if(p);
+
+                if (strcmp(p->current.value, "include") == 0)
+                        return parse_include(p);
         }
 
         if (p->current.type == LX_LBRACE)
@@ -574,6 +577,27 @@ struct astnode *parse_if(struct parser *p)
         }
 
         return base;
+}
+
+struct astnode *parse_include(struct parser *p)
+{
+        if (p->current.type != LX_IDEN || strcmp(p->current.value, "include") != 0) {
+                printf("Expected 'include' at the start of an include directive. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        if (p->current.type != LX_STRING) {
+                printf("Expected string literal after the include identifier. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        struct astnode *include = astnode_include(p->line, p->block, p->current.value);
+        parser_advance(p);
+        return include;
 }
 
 struct astnode *parse_attributes(struct parser *p)

@@ -318,7 +318,7 @@ struct astnode *astnode_copy_symbol(struct astnode *);
 
 struct astnode *astnode_generated_function(struct astnode *, size_t, enum gen_type);
 
-struct astnode *astnode_include(char *);
+struct astnode *astnode_include(size_t, struct astnode *super, char *);
 
 // Memory safety --
 

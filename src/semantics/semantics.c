@@ -54,6 +54,9 @@ _Bool analyze_block(struct semantics *sem, struct astnode *block)
 
 _Bool analyze_any(struct semantics *sem, struct astnode *node)
 {
+        if (node->type != NODE_INCLUDE && !(node->type == NODE_BLOCK && node->holder && node->holder->type == NODE_PROGRAM))
+                sem->pristine = false;
+
         switch (node->type) {
                 case NODE_BLOCK:
                         return analyze_block(sem, node);
@@ -75,6 +78,8 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                         return analyze_assignment(sem, node);
                 case NODE_RESOLVE:
                         return analyze_resolve(sem, node);
+                case NODE_INCLUDE:
+                        return analyze_include(sem, node);
                 case NODE_NOTHING:
                         return true;
                 default:
@@ -352,6 +357,18 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
         res->resolve.function = function;
 
         return true;
+}
+
+_Bool analyze_include(struct semantics *sem, struct astnode *include)
+{
+        if (!sem->pristine) {
+                printf("Include statements must be located at the very top of the file. Error on line %ld.\n", include->line);
+                return false;
+        }
+
+        semantics_new_include(sem, include->include.path);
+
+        return false;
 }
 
 struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr, _Bool *compile_time)

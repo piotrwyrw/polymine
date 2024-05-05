@@ -16,6 +16,8 @@ struct semantics {
         struct astnode *stuff;
 
         size_t function_number;
+
+        _Bool pristine; // TRUE if nothing but include nodes were analyzed up until this time
 };
 
 void semantics_init(struct semantics *, struct astnode *types);

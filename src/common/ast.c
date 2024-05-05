@@ -586,8 +586,8 @@ struct astnode *astnode_generated_function(struct astnode *definition, size_t nu
         return node;
 }
 
-struct astnode *astnode_include(char *path) {
-        struct astnode *node = astnode_generic(NODE_INCLUDE, 0, NULL);
+struct astnode *astnode_include(size_t line, struct astnode *super, char *path) {
+        struct astnode *node = astnode_generic(NODE_INCLUDE, line, super);
         node->include.path = strdup(path);
         return node;
 }

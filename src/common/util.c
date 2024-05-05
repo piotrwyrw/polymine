@@ -189,6 +189,10 @@ void ast_print(struct astnode *_node, size_t level)
                         ast_print(node->if_statement.next_branch, level + 1);
                         break;
 
+                case NODE_INCLUDE:
+                INDENTED("Include \"%s\"\n", node->include.path);
+                        break;
+
                 case NODE_SYMBOL:
                 INDENTED("Symbol (%s)\n", node->symbol.identifier);
                         break;

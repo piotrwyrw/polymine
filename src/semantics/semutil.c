@@ -14,6 +14,7 @@ void semantics_init(struct semantics *sem, struct astnode *types)
         sem->_void = astdtype_void();
         sem->stuff = types;
         sem->function_number = 0;
+        sem->pristine = true;
 
         semantics_new_include(sem, "inttypes.h");
 }
@@ -298,7 +299,7 @@ void semantics_new_function(struct semantics *sem, struct astnode *function, enu
 
 void semantics_new_include(struct semantics *sem, char *path)
 {
-        struct astnode *include = astnode_include(path);
+        struct astnode *include = astnode_include(0, NULL, path);
         astnode_push_compound(sem->stuff, include);
 }
 
