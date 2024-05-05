@@ -1,7 +1,7 @@
 #ifndef AST_H
 #define AST_H
 
-#include "lexer.h"
+#include "../syntax/lexer.h"
 
 #include <stdlib.h>
 #include <stdbool.h>

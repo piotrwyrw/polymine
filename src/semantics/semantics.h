@@ -1,7 +1,7 @@
 #ifndef SEMANTICS_H
 #define SEMANTICS_H
 
-#include "ast.h"
+#include "../common/ast.h"
 
 #ifndef FUNCTION_ID
 #define FUNCTION_ID(id) ((id) != NULL ? (id) : "<anonymous function>")

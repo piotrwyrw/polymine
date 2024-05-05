@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.27)
 project(polymine C)
 set(CMAKE_BUILD_TYPE Debug)
-add_executable(polymine src/main.c src/ast.c src/io.c src/lexer.c src/parser.c
-        src/util.h
-        src/util.c
-        src/syntax.c
-        src/syntax.h
-        src/semantics.h
-        src/semantics.c
-        src/semutil.h
-        src/semutil.c
+add_executable(polymine src/syntax/main.c src/common/ast.c src/common/io.c src/syntax/lexer.c src/syntax/parser.c
+        src/common/util.h
+        src/common/util.c
+        src/syntax/syntax.c
+        src/syntax/syntax.h
+        src/semantics/semantics.h
+        src/semantics/semantics.c
+        src/semantics/semutil.h
+        src/semantics/semutil.c
 )

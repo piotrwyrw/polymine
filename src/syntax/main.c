@@ -1,10 +1,10 @@
-#include "io.h"
+#include "../common/io.h"
 #include "lexer.h"
 #include "parser.h"
 #include "syntax.h"
-#include "semutil.h"
-#include "util.h"
-#include "semantics.h"
+#include "../semantics/semutil.h"
+#include "../common/util.h"
+#include "../semantics/semantics.h"
 
 #include <stdio.h>
 

@@ -3,7 +3,7 @@
 
 #include "lexer.h"
 
-#include "ast.h"
+#include "../common/ast.h"
 
 struct parser {
         struct lxtok current;

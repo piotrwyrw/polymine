@@ -3,7 +3,7 @@
 //
 
 #include "util.h"
-#include "semantics.h"
+#include "../semantics/semantics.h"
 
 #include <string.h>
 #include <math.h>

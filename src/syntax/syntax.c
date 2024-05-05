@@ -4,8 +4,8 @@
 
 #include "parser.h"
 #include "syntax.h"
-#include "util.h"
-#include "semutil.h"
+#include "../common/util.h"
+#include "../semantics/semutil.h"
 
 #include <string.h>
 

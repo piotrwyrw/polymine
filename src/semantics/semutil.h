@@ -1,7 +1,7 @@
 #ifndef SEMUTIL_H
 #define SEMUTIL_H
 
-#include "ast.h"
+#include "../common/ast.h"
 #include "semantics.h"
 
 struct semantics {

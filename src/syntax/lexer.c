@@ -1,5 +1,5 @@
 #include "lexer.h"
-#include "defs.h"
+#include "../common/defs.h"
 
 #include <ctype.h>
 #include <stdio.h>
