@@ -4,7 +4,7 @@
 #include "syntax.h"
 #include "../semantics/semutil.h"
 #include "../common/util.h"
-#include "../semantics/semantics.h"
+#include "../codegen/codegen.h"
 
 #include <stdio.h>
 
@@ -42,6 +42,19 @@ int main(void)
 
         analyze_program(&sem, node);
         ast_print(node, 0);
+
+        // --- Code generation
+
+        FILE *output = fopen("output.c", "wa");
+
+        struct codegen gen;
+        codegen_init(&gen, node, sem.stuff, output);
+        gen_generate(&gen);
+
+        fclose(output);
+
+        // ---
+
         astnode_free(node);
 
         semantics_free(&sem);

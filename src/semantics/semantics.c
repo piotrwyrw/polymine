@@ -234,8 +234,10 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         if (symbol_conflict(fdef->function_def.identifier, fdef))
                 return false;
 
+        fdef->function_def.nested = find_enclosing_function(fdef->super) != NULL;
+
         // Check if the function is allowed to have a capture group
-        if (!find_enclosing_function(fdef->super) && fdef->function_def.capture) {
+        if (!fdef->function_def.nested && fdef->function_def.capture) {
                 printf("The function \"%s\" is not nested, and is therefore not allowed to have a capture group. Error on line %ld.\n",
                        fdef->function_def.identifier, fdef->line);
                 return false;
@@ -273,6 +275,8 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         // It's important to make the function available in the global scope only after analyzing the function block
         if (fdef->function_def.identifier)
                 put_symbol(fdef->super, astnode_copy_symbol(sym));
+
+        semantics_new_function(sem, fdef, fdef->function_def.nested ? GENERATED_LAMBDA : GENERATED_REGULAR);
 
         return true;
 }
@@ -466,14 +470,14 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                         return NULL;
                 }
 
-                return semantics_newtype(sem, astdtype_pointer(exprType));
+                return semantics_new_type(sem, astdtype_pointer(exprType));
         }
 
         if (atom->type == NODE_FUNCTION_DEFINITION) {
                 if (compile_time)
                         *compile_time = false;
 
-                struct astdtype *type = semantics_newtype(sem, function_def_type(atom));
+                struct astdtype *type = semantics_new_type(sem, function_def_type(atom));
 
                 if (atom->holder && atom->holder->type == NODE_BINARY_OP) {
                         printf("A function definition (or lambda) cannot be part of a binary expression. Violation on line %ld.\n",
@@ -482,10 +486,10 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                 }
 
                 // Make sure nested functions are marked as nested
-                struct astnode *enclosing;
+//                struct astnode *enclosing;
 
-                if ((enclosing = find_enclosing_function(atom->super)))
-                        atom->holder = enclosing;
+//                if ((enclosing = find_enclosing_function(atom->super)))
+//                        atom->holder = enclosing;
 
                 if (!analyze_function_definition(sem, atom))
                         return NULL;

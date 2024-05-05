@@ -154,7 +154,10 @@ void ast_print(struct astnode *_node, size_t level)
 
                 case NODE_FUNCTION_DEFINITION:
                         s = astdtype_string(node->function_def.type);
-                        INDENTED("Function Definition '%s' of %s:\n", FUNCTION_ID(node->function_def.identifier), s);
+                        INDENTED("Function Definition '%s' (%s) of %s:\n", FUNCTION_ID(node->function_def.identifier),
+                                 (node->function_def.generated
+                                  ? node->function_def.generated->generated_function.generated_id : "Not yet analyzed"),
+                                 s);
                         free(s);
                         ast_print(node->function_def.params, level + 1);
                         if (node->function_def.capture)
@@ -175,7 +178,7 @@ void ast_print(struct astnode *_node, size_t level)
                 case NODE_RESOLVE:
                 INDENTED("Resolve (%s):\n",
                          node->resolve.function ? FUNCTION_ID(node->resolve.function->function_def.identifier)
-                                                : "(Not yet analyzed)");
+                                                : "Not yet analyzed");
                         ast_print(node->resolve.value, level + 1);
                         break;
 

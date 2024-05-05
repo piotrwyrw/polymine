@@ -8,6 +8,8 @@
 
 #define NODE_ARRAY_INCREMENT 20
 
+extern _Bool freeDataTypes;
+
 enum nodetype : uint8_t {
         NODE_UNDEFINED = 0,
 
@@ -33,6 +35,8 @@ enum nodetype : uint8_t {
 
         // Semantic stuff
         NODE_SYMBOL,
+        NODE_GENERATED_FUNCTION,
+        NODE_INCLUDE,
 
         // Memory safety
         NODE_WRAPPED
@@ -61,9 +65,9 @@ enum symbol_type {
 
 char *symbol_type_humanstr(enum symbol_type);
 
-enum fdef_flags : uint8_t {
-        FLAG_PRIMARY = (1 << 0),
-        FLAG_NO_RETURN_CHECKS = (1 << 1)
+enum gen_type {
+        GENERATED_REGULAR,
+        GENERATED_LAMBDA
 };
 
 struct astdtype;
@@ -138,9 +142,10 @@ struct astnode {
                         struct astdtype *type;
                         struct astnode *capture; // And so is this!
                         struct astnode *block;
-                        enum fdef_flags flags;
+                        _Bool nested;
                         _Bool conditionless_resolve; // Managed by Semantic Analysis
                         struct astnode *attributes; // Compound
+                        struct astnode *generated; // generated_function
                 } function_def;
 
                 struct {
@@ -163,7 +168,7 @@ struct astnode {
                         struct astnode *next_branch;
                 } if_statement;
 
-                // Stuff for semantic analysis
+                // -- Stuff for semantic analysis --
                 struct {
                         enum symbol_type symtype;
                         char *identifier;
@@ -171,7 +176,18 @@ struct astnode {
                         struct astnode *node;
                 } symbol;
 
-                // Memory safety features
+                struct {
+                        struct astnode *definition;
+                        size_t number;
+                        enum gen_type type;
+                        char *generated_id;
+                } generated_function;
+
+                struct {
+                        char *path;
+                } include;
+
+                // -- Memory safety features --
                 struct {
                         struct astnode *node;
                 } wrapped_node;
@@ -299,6 +315,10 @@ struct astnode *astnode_if(size_t, struct astnode *, struct astnode *, struct as
 struct astnode *astnode_symbol(struct astnode *, enum symbol_type, char *, struct astdtype *, struct astnode *);
 
 struct astnode *astnode_copy_symbol(struct astnode *);
+
+struct astnode *astnode_generated_function(struct astnode *, size_t, enum gen_type);
+
+struct astnode *astnode_include(char *);
 
 // Memory safety --
 

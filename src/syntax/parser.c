@@ -18,25 +18,12 @@ void parser_init(struct parser *p, struct lexer *lx)
         parser_advance(p);
 }
 
-static void *parser_free_type(void *junk, struct astnode *node)
-{
-        if (node->type != NODE_DATA_TYPE)
-                return NULL;
-
-        astdtype_free(node->data_type.adt);
-
-        free(node);
-        return NULL;
-}
-
 void parser_free(struct parser *p)
 {
         lxtok_free(&p->current);
         lxtok_free(&p->next);
-        astnode_compound_foreach(p->types, NULL, (void *) parser_free_type);
-        p->types->node_compound.count = 0;
+        freeDataTypes = true;
         astnode_free_compound(p->types);
-//        astnode_free(p->types);
 }
 
 void parser_advance(struct parser *p)

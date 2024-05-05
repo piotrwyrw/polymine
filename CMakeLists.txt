@@ -10,4 +10,6 @@ add_executable(polymine src/syntax/main.c src/common/ast.c src/common/io.c src/s
         src/semantics/semantics.c
         src/semantics/semutil.h
         src/semantics/semutil.c
+        src/codegen/codegen.h
+        src/codegen/codegen.c
 )

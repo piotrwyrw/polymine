@@ -12,7 +12,10 @@ void semantics_init(struct semantics *sem, struct astnode *types)
         sem->byte = astdtype_builtin(BUILTIN_GENERIC_BYTE);
         sem->_double = astdtype_builtin(BUILTIN_DOUBLE);
         sem->_void = astdtype_void();
-        sem->types = types;
+        sem->stuff = types;
+        sem->function_number = 0;
+
+        semantics_new_include(sem, "inttypes.h");
 }
 
 void semantics_free(struct semantics *sem)
@@ -268,9 +271,9 @@ struct astdtype *required_type_integer(struct semantics *sem, int value)
         return NULL;
 }
 
-struct astdtype *semantics_newtype(struct semantics *sem, struct astdtype *type)
+struct astdtype *semantics_new_type(struct semantics *sem, struct astdtype *type)
 {
-        astnode_push_compound(sem->types, astnode_data_type(type));
+        astnode_push_compound(sem->stuff, astnode_data_type(type));
         return type;
 }
 
@@ -286,9 +289,22 @@ struct astdtype *function_def_type(struct astnode *fdef)
         return astdtype_lambda(types, returnType);
 }
 
+void semantics_new_function(struct semantics *sem, struct astnode *function, enum gen_type type)
+{
+        struct astnode *gf = astnode_generated_function(function, sem->function_number++, type);
+        astnode_push_compound(sem->stuff, gf);
+        function->function_def.generated = gf;
+}
+
+void semantics_new_include(struct semantics *sem, char *path)
+{
+        struct astnode *include = astnode_include(path);
+        astnode_push_compound(sem->stuff, include);
+}
+
 _Bool has_attribute(struct astnode *compound, char const *iden)
 {
-        for (size_t i = 0; i < compound->node_compound.count; i ++)
+        for (size_t i = 0; i < compound->node_compound.count; i++)
                 if (strcmp(compound->node_compound.array[i]->attribute.identifier, iden) == 0)
                         return true;
 

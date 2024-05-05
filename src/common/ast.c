@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+_Bool freeDataTypes = false;
+
 enum builtin_type builtin_from_string(char *str)
 {
 #define RETURN_IF(val, type) \
@@ -49,7 +51,10 @@ void astdtype_free(struct astdtype *adt)
                         free(adt->custom.name);
                         break;
                 case ASTDTYPE_LAMBDA:
+                        // Just free the compound and NOT what it contains
+                        freeDataTypes = false;
                         astnode_free(adt->lambda.paramTypes);
+                        freeDataTypes = true;
                         break;
                 default:
                         break;
@@ -316,12 +321,18 @@ void astnode_free(struct astnode *node)
                         astnode_free(node->if_statement.expr);
                         astnode_free(node->if_statement.block);
                         break;
-//                case NODE_DATA_TYPE:
-//                        if (!freeDataTypes)
-//                                break;
-//
-//                        astdtype_free(node->data_type.adt);
-//                        break;
+                case NODE_GENERATED_FUNCTION:
+                        free(node->generated_function.generated_id);
+                        break;
+                case NODE_INCLUDE:
+                        free(node->include.path);
+                        break;
+                case NODE_DATA_TYPE:
+                        if (!freeDataTypes)
+                                break;
+
+                        astdtype_free(node->data_type.adt);
+                        break;
                 default:
                         break;
         }
@@ -488,6 +499,8 @@ struct astnode *astnode_function_definition(size_t line, struct astnode *superbl
         node->function_def.capture = capture;
         node->function_def.conditionless_resolve = false;
         node->function_def.attributes = attrs;
+        node->function_def.generated = NULL;
+        node->function_def.nested = false;
         return node;
 }
 
@@ -550,6 +563,33 @@ struct astnode *astnode_copy_symbol(struct astnode *sym)
 {
         return astnode_symbol(sym->super, sym->symbol.symtype, sym->symbol.identifier, sym->symbol.type,
                               sym->symbol.node);
+}
+
+struct astnode *astnode_generated_function(struct astnode *definition, size_t number, enum gen_type type)
+{
+        struct astnode *node = astnode_generic(NODE_GENERATED_FUNCTION, 0, NULL);
+        node->generated_function.definition = definition;
+        node->generated_function.type = type;
+        node->generated_function.number = number;
+        node->generated_function.generated_id = calloc(100, sizeof(char));
+
+        if (type == GENERATED_LAMBDA) {
+                char *coreId = definition->function_def.identifier;
+                if (!coreId && definition->holder && definition->holder->type == NODE_VARIABLE_DECL)
+                        coreId = definition->holder->declaration.identifier;
+
+                sprintf(node->generated_function.generated_id, "__lambda%ld_%s", number,
+                        coreId ? coreId : "anon");
+        } else
+                sprintf(node->generated_function.generated_id, "__%s", definition->function_def.identifier);
+
+        return node;
+}
+
+struct astnode *astnode_include(char *path) {
+        struct astnode *node = astnode_generic(NODE_INCLUDE, 0, NULL);
+        node->include.path = strdup(path);
+        return node;
 }
 
 struct astnode *astnode_wrap(struct astnode *n)

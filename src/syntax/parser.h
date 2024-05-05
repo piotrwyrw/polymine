@@ -10,7 +10,11 @@ struct parser {
         struct lxtok next;
         struct lexer *lx;
         struct astnode *block;
-        struct astnode *types; // A compound node
+
+        // A compound node. This starts off as a way for the parser to store the data
+        // types it creates (parses), but is later repurposed by the semantic analysis stage
+        // as well as the code generators for storing lambda (ordering) as well as types.
+        struct astnode *types;
         size_t line;
 };
 

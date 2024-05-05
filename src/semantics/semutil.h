@@ -13,7 +13,9 @@ struct semantics {
         struct astdtype *byte;
         struct astdtype *_void;
 
-        struct astnode *types;
+        struct astnode *stuff;
+
+        size_t function_number;
 };
 
 void semantics_init(struct semantics *, struct astnode *types);
@@ -53,9 +55,13 @@ struct astdtype *required_type(struct astdtype *, struct astdtype *);
 
 struct astdtype *required_type_integer(struct semantics *, int);
 
-struct astdtype *semantics_newtype(struct semantics *, struct astdtype *);
+struct astdtype *semantics_new_type(struct semantics *, struct astdtype *);
 
 struct astdtype *function_def_type(struct astnode *);
+
+void semantics_new_function(struct semantics *, struct astnode *, enum gen_type);
+
+void semantics_new_include(struct semantics *, char *);
 
 _Bool has_attribute(struct astnode *, char const *);
 
