@@ -26,6 +26,7 @@ const char *lxtype_string(enum lxtype type)
                 AUTO_CASE(LX_MOV_LEFT)
                 AUTO_CASE(LX_MOV_RIGHT)
                 AUTO_CASE(LX_DOUBLE_OR)
+                AUTO_CASE(LX_DOUBLE_AND)
                 AUTO_CASE(LX_EQUALS)
                 AUTO_CASE(LX_LSQUARE)
                 AUTO_CASE(LX_RSQUARE)
@@ -48,6 +49,7 @@ const char *lxtype_string(enum lxtype type)
                 AUTO_CASE(LX_EXCLAMATION)
                 AUTO_CASE(LX_DOT)
                 AUTO_CASE(LX_COMMA)
+                AUTO_CASE(LX_QUESTION_MARK)
                 default:
                         return "[??]";
         }
@@ -186,17 +188,6 @@ _Bool lexer_next(struct lexer *lx, struct lxtok *tok)
                         }
                 }
 
-                if (mode == LMODE_STRING && c == '\\') {
-                        if (!escape_sequence(lx, buffer, &buffer_idx)) {
-                                printf("Bad escape sequence on line %ld.", lx->line);
-                                return false;
-                        }
-
-                        lx->position--;
-
-                        continue;
-                }
-
                 buffer[buffer_idx++] = c;
 
                 if (lx->position + 1 >= lx->input->length)
@@ -269,11 +260,12 @@ _Bool special_constr(struct lexer *lx, struct lxtok *tok)
         SUBMIT_TYPE_ON(">>", LX_SHR);
         SUBMIT_TYPE_ON("<-", LX_MOV_LEFT);
         SUBMIT_TYPE_ON("->", LX_MOV_RIGHT);
-        SUBMIT_TYPE_ON("||", LX_DOUBLE_OR)
+        SUBMIT_TYPE_ON("||", LX_DOUBLE_OR);
+        SUBMIT_TYPE_ON("&&", LX_DOUBLE_AND);
 
 #undef SUBMIT_TYPE_ON
 #define SUBMIT_TYPE_ON(cmpc, t)                        \
-        if (c1 == cmpc) {                        \
+        if (c1 == (cmpc)) {                        \
                 type = t;                        \
                 goto submit;                        \
         }
@@ -320,40 +312,6 @@ _Bool special_constr(struct lexer *lx, struct lxtok *tok)
                 lx->position++;
 
         lxtok_init(tok, type, str, line);
-        return true;
-}
-
-_Bool escape_sequence(struct lexer *lx, char *buffer, size_t *buffIdx)
-{
-        if (lx->position + 1 >= lx->input->length)
-                return false;
-
-        char junk = lx->input->buffer[lx->position];
-        if (junk != '\\')
-                return false;
-
-        char seq = lx->input->buffer[lx->position + 1];
-
-        char subst;
-
-        switch (seq) {
-                case 'n':
-                        subst = '\n';
-                        break;
-                case '\\':
-                        subst = '\\';
-                        break;
-                case '\"':
-                        subst = '\"';
-                        break;
-                default:
-                        return false;
-        }
-
-        lx->position += 2; // Skip the two-character-long escape sequence
-        buffer[*buffIdx] = subst;
-        *buffIdx = (*buffIdx) + 1;
-
         return true;
 }
 

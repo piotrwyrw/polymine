@@ -64,6 +64,9 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
 
                 if (strcmp(p->current.value, "include") == 0)
                         return parse_include(p);
+
+                if (strcmp(p->current.value, "present") == 0)
+                        return parse_present(p);
         }
 
         if (p->current.type == LX_LBRACE)
@@ -391,6 +394,7 @@ struct astnode *parse_function_definition(struct parser *p)
                 params = parse_function_parameters(p);
                 if (!params) {
                         free(id);
+                        astnode_free(attrs);
                         return NULL;
                 }
         } else
@@ -400,6 +404,7 @@ struct astnode *parse_function_definition(struct parser *p)
                 printf("Expected '->' after function parameter block. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 free(id);
+                astnode_free(attrs);
                 astnode_free(params);
                 return NULL;
         }
@@ -410,6 +415,7 @@ struct astnode *parse_function_definition(struct parser *p)
 
         if (!type) {
                 free(id);
+                astnode_free(attrs);
                 astnode_free(params);
                 return NULL;
         }
@@ -427,6 +433,7 @@ struct astnode *parse_function_definition(struct parser *p)
                                        lxtype_string(p->current.type), p->current.value, p->line);
                                 free(id);
                                 astnode_free(params);
+                                astnode_free(attrs);
                                 astnode_free(capture);
                                 return NULL;
                         }
@@ -449,6 +456,7 @@ struct astnode *parse_function_definition(struct parser *p)
                                 printf("Expected ',' and more capture variables, or the function block. Got %s (\"%s\") on line %ld.\n",
                                        lxtype_string(p->current.type), p->current.value, p->line);
                                 free(id);
+                                astnode_free(attrs);
                                 astnode_free(params);
                                 astnode_free(capture);
                                 return NULL;
@@ -460,6 +468,7 @@ struct astnode *parse_function_definition(struct parser *p)
                 printf("Expected '{' after function parameter block. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 free(id);
+                astnode_free(attrs);
                 astnode_free(params);
                 astnode_free(capture);
                 return NULL;
@@ -469,6 +478,7 @@ struct astnode *parse_function_definition(struct parser *p)
 
         if (!block) {
                 free(id);
+                astnode_free(attrs);
                 astnode_free(params);
                 astnode_free(capture);
                 return NULL;
@@ -485,6 +495,55 @@ struct astnode *parse_function_definition(struct parser *p)
         free(id);
 
         return fdef;
+}
+
+struct astnode *parse_present(struct parser *p)
+{
+        if (p->current.type != LX_IDEN || strcmp(p->current.value, "present") != 0) {
+                printf("Expected 'linked' at the beginning of a linked function definition. Got %s (\"%s\") rror on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        if (p->current.type != LX_IDEN) {
+                printf("Expected function identifier after linked keyword. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                return NULL;
+        }
+
+        char *id = strdup(p->current.value);
+
+        parser_advance(p);
+
+        struct astnode *params = parse_function_parameters(p);
+
+        if (!params) {
+                free(id);
+                return NULL;
+        }
+
+        if (p->current.type != LX_MOV_RIGHT) {
+                printf("Expected '->' after parameter block. Got %s (\"%s\") on line %ld.\n",
+                       lxtype_string(p->current.type), p->current.value, p->line);
+                free(id);
+                return NULL;
+        }
+
+        parser_advance(p);
+
+        struct astdtype *type = parse_type(p);
+
+        if (!type) {
+                astnode_free(params);
+                free(id);
+                return NULL;
+        }
+
+        struct astnode *linked = astnode_present_function(p->line, p->block, id, params, type);
+        free(id);
+        return linked;
 }
 
 struct astnode *parse_resolve(struct parser *p)
@@ -815,7 +874,8 @@ struct astnode *parse_additive_expr(struct parser *p)
         if (!left)
                 return NULL;
 
-        while (p->current.type == LX_PLUS || p->current.type == LX_MINUS) {
+        while (p->current.type == LX_PLUS || p->current.type == LX_MINUS || p->current.type == LX_DOUBLE_AND ||
+               p->current.type == LX_DOUBLE_OR) {
                 enum binaryop op = bop_from_lxtype(p->current.type);
 
                 parser_advance(p);
@@ -843,7 +903,9 @@ struct astnode *parse_multiplicative_expr(struct parser *p)
         if (!left)
                 return NULL;
 
-        while (p->current.type == LX_ASTERISK || p->current.type == LX_SLASH) {
+        while (p->current.type == LX_ASTERISK || p->current.type == LX_SLASH || p->current.type == LX_LGREATER ||
+               p->current.type == LX_LGREQUAL || p->current.type == LX_RGREATER || p->current.type == LX_RGREQUAL) {
+
                 enum binaryop op = bop_from_lxtype(p->current.type);
 
                 parser_advance(p);

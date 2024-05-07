@@ -30,6 +30,7 @@ enum lxtype : uint8_t {
         LX_MOV_LEFT,
         LX_MOV_RIGHT,
         LX_DOUBLE_OR,
+        LX_DOUBLE_AND,
 
         LX_EQUALS,
         LX_LSQUARE,
@@ -95,8 +96,6 @@ _Bool lexer_empty(struct lexer *);
 _Bool lexer_next(struct lexer *, struct lxtok *);
 
 _Bool special_constr(struct lexer *, struct lxtok *);
-
-_Bool escape_sequence(struct lexer *, char *buffer, size_t *buffIdx);
 
 _Bool is_iden_char(char);
 

@@ -17,14 +17,21 @@ _Bool analyze_program(struct semantics *sem, struct astnode *program)
         }
 
         if (sym->symbol.symtype != SYMBOL_FUNCTION) {
-                printf("The symbol 'main' is a %s. Expected function.", symbol_type_humanstr(sym->symbol.symtype));
+                printf("The symbol 'main' is a %s. Expected function. Conflict on line %ld.\n",
+                       symbol_type_humanstr(sym->symbol.symtype), sym->symbol.node->line);
                 return false;
         }
 
         struct astdtype *type = sym->symbol.node->function_def.type;
 
         if (type->type != ASTDTYPE_VOID) {
-                printf("Expected the main function to be of type void.\n");
+                printf("Expected the main function to be of type void. Error on line %ld\n", sym->symbol.node->line);
+                return false;
+        }
+
+        if (sym->symbol.node->function_def.params->node_compound.count != 0) {
+                printf("Expected the main function to have no parameters. Error on line %ld.\n",
+                       sym->symbol.node->line);
                 return false;
         }
 
@@ -54,7 +61,8 @@ _Bool analyze_block(struct semantics *sem, struct astnode *block)
 
 _Bool analyze_any(struct semantics *sem, struct astnode *node)
 {
-        if (node->type != NODE_INCLUDE && !(node->type == NODE_BLOCK && node->holder && node->holder->type == NODE_PROGRAM))
+        if (node->type != NODE_INCLUDE &&
+            !(node->type == NODE_BLOCK && node->holder && node->holder->type == NODE_PROGRAM))
                 sem->pristine = false;
 
         switch (node->type) {
@@ -82,15 +90,38 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                         return analyze_include(sem, node);
                 case NODE_NOTHING:
                         return true;
+                case NODE_PRESENT_FUNCTION:
+                        return analyze_linked_function(sem, node);
                 default:
                         printf("Unknown node type passed to analyze_any(..): %s\n", nodetype_string(node->type));
                         return false;
         }
 }
 
+_Bool analyze_type(struct astdtype *type)
+{
+        if (type->type != ASTDTYPE_POINTER)
+                return true;
+
+        if (type->pointer.to->type == ASTDTYPE_LAMBDA) {
+                printf("A pointer to a lambda type is invalid.\n");
+                return false;
+        }
+
+        return analyze_type(type->pointer.to);
+}
+
 _Bool analyze_if(struct semantics *sem, struct astnode *_if)
 {
+        if (!_if->if_statement.expr)
+                goto skip_expression;
+
         struct astdtype *type = analyze_expression(sem, _if->if_statement.expr, NULL);
+
+        if (!type) {
+                printf("Type evaluation failed for if condition on line %ld.\n", _if->line);
+                return false;
+        }
 
         if (type->type != ASTDTYPE_BUILTIN && type->type != ASTDTYPE_POINTER) {
                 printf("The if-expression on line %ld is invalid: The expression must evaluate to an effective builtin type.\n",
@@ -98,8 +129,13 @@ _Bool analyze_if(struct semantics *sem, struct astnode *_if)
                 return false;
         }
 
+        skip_expression:
+
         if (!analyze_block(sem, _if->if_statement.block))
                 return false;
+
+        if (_if->if_statement.next_branch)
+                return analyze_if(sem, _if->if_statement.next_branch);
 
         return true;
 }
@@ -108,6 +144,13 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
 {
         if (symbol_conflict(decl->declaration.identifier, decl))
                 return false;
+
+        if (decl->declaration.type)
+                if (!analyze_type(decl->declaration.type)) {
+                        printf("The provided type for variable \"%s\" is invalid. Error on line %ld.\n",
+                               decl->declaration.identifier, decl->line);
+                        return false;
+                }
 
         // Type-inferred variables must have a value at the time of declaration
         if (!decl->declaration.type && !decl->declaration.value) {
@@ -171,6 +214,8 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
                    astnode_symbol(decl->super, SYMBOL_VARIABLE, decl->declaration.identifier, decl->declaration.type,
                                   decl));
 
+        declaration_generate_name(decl, sem->symbol_counter++);
+
         return true;
 }
 
@@ -190,6 +235,8 @@ _Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
                        symbol_type_humanstr(sym->symbol.symtype), assignment->line);
                 return false;
         }
+
+        assignment->assignment.declaration = sym->symbol.node;
 
         struct astdtype *exprType = analyze_expression(sem, assignment->assignment.value, NULL);
 
@@ -221,12 +268,59 @@ _Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
         return true;
 }
 
+static struct semantics *_semantics;
+
 static void *declare_param_variable(struct astnode *fdef, struct astnode *variable)
 {
+        if (!analyze_type(variable->declaration.type))
+                return variable;
+
+        declaration_generate_name(variable, _semantics->symbol_counter++);
+
         put_symbol(fdef->function_def.block,
                    astnode_symbol(fdef->function_def.block, SYMBOL_VARIABLE, variable->declaration.identifier,
                                   variable->declaration.type, variable));
         return NULL;
+}
+
+static void *analyze_linked_function_params(struct semantics *sem, struct astnode *param)
+{
+        return NULL;
+}
+
+_Bool analyze_linked_function(struct semantics *sem, struct astnode *linked)
+{
+        if (linked->present_function.type->type == ASTDTYPE_LAMBDA) {
+                printf("The return type of a linked function must not be a lambda. Error on line %ld.\n", linked->line);
+                return false;
+        }
+
+        if (!analyze_type(linked->present_function.type))
+                return false;
+
+        if (symbol_conflict(linked->present_function.identifier, linked))
+                return false;
+
+        if (linked->super->super) {
+                printf("A linked function definition must be placed at the root of the program. Function \"%s\" violated this rule on line %ld.\n",
+                       linked->present_function.identifier, linked->line);
+                return false;
+        }
+
+        struct astnode *flawed_param;
+
+        if ((flawed_param = astnode_compound_foreach(linked->present_function.params, sem,
+                                                     (void *) analyze_linked_function_params))) {
+                printf("The type of parameter \"%s\" of function \"%s\" is invalid. Error on line %ld.\n",
+                       flawed_param->declaration.identifier,
+                       linked->present_function.identifier, linked->line);
+                return false;
+        }
+
+        put_symbol(linked->super, astnode_symbol(linked->super, SYMBOL_FUNCTION, linked->present_function.identifier,
+                                                 linked->present_function.type, linked));
+
+        return true;
 }
 
 _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
@@ -235,6 +329,9 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                 printf("The return type of a function must not be a lambda. Violation on line %ld.\n", fdef->line);
                 return NULL;
         }
+
+        if (!analyze_type(fdef->function_def.type))
+                return false;
 
         if (symbol_conflict(fdef->function_def.identifier, fdef))
                 return false;
@@ -248,10 +345,21 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                 return false;
         }
 
-        astnode_compound_foreach(fdef->function_def.params, fdef, (void *) declare_param_variable);
+        struct astnode *flawed_param;
+
+        _semantics = sem;
+
+        if ((flawed_param = astnode_compound_foreach(fdef->function_def.params, fdef,
+                                                     (void *) declare_param_variable))) {
+                printf("The provided type for parameter variable \"%s\" of function \"%s\" is invalid. Error on line %ld.\n",
+                       flawed_param->declaration.identifier, fdef->function_def.identifier, flawed_param->line);
+                return false;
+        }
 
         if (fdef->function_def.capture)
                 analyze_capture_group(sem, fdef);
+
+        _semantics = NULL;
 
         struct astnode *sym;
 
@@ -283,6 +391,10 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
 
         semantics_new_function(sem, fdef, fdef->function_def.nested ? GENERATED_LAMBDA : GENERATED_REGULAR);
 
+        fdef->function_def.param_count = fdef->function_def.params->node_compound.count;
+        if (fdef->function_def.capture)
+                fdef->function_def.param_count -= fdef->function_def.capture->node_compound.count;
+
         return true;
 }
 
@@ -312,8 +424,11 @@ static void *analyze_capture_variable(struct astnode *fdef, struct astnode *var)
 
         var->declaration.type = symbol->symbol.type;
         var->declaration.value = WRAP(symbol->symbol.node->declaration.value);
+        var->declaration.refers_to = symbol->symbol.node;
 
         declare_param_variable(fdef, var);
+
+        astnode_push_compound(fdef->function_def.params, WRAP(var));
 
         return NULL;
 }
@@ -362,13 +477,14 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
 _Bool analyze_include(struct semantics *sem, struct astnode *include)
 {
         if (!sem->pristine) {
-                printf("Include statements must be located at the very top of the file. Error on line %ld.\n", include->line);
+                printf("Include statements must be located at the very top of the file. Error on line %ld.\n",
+                       include->line);
                 return false;
         }
 
         semantics_new_include(sem, include->include.path);
 
-        return false;
+        return true;
 }
 
 struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr, _Bool *compile_time)
@@ -381,7 +497,7 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr,
                 case NODE_BINARY_OP:
                         return analyze_binary_expression(sem, expr, compile_time);
                 case NODE_VARIABLE_USE:
-                        return analyze_variable_use(sem, expr, compile_time);
+                        return analyze_variable_use(sem, expr);
                 case NODE_INTEGER_LITERAL:
                 case NODE_FLOAT_LITERAL:
                 case NODE_STRING_LITERAL:
@@ -419,10 +535,14 @@ struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode
                 return NULL;
         }
 
+        if (bin->binary.op == BOP_RGREQ || bin->binary.op == BOP_LGREQ || bin->binary.op == BOP_RGREATER ||
+            bin->binary.op == BOP_LGREATER || bin->binary.op == BOP_AND || bin->binary.op == BOP_OR)
+                return sem->int8;
+
         return type;
 }
 
-struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use, _Bool *compile_time)
+struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use)
 {
         struct astnode *symbol;
 
@@ -437,6 +557,8 @@ struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use
                        symbol_type_humanstr(symbol->symbol.symtype), use->line);
                 return NULL;
         }
+
+        use->variable.var = symbol->symbol.node;
 
         return symbol->symbol.type;
 }
@@ -462,7 +584,7 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                                atom->string_literal.value, atom->line);
                         return NULL;
                 }
-                return sem->int64;
+                return sem->string;
         }
 
         if (atom->type == NODE_FUNCTION_CALL) {
@@ -473,6 +595,11 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
         }
 
         if (atom->type == NODE_POINTER) {
+                if (atom->pointer.target->type != NODE_VARIABLE_USE) {
+                        printf("A pointer can only be created to a variable. Error on line %ld.\n", atom->line);
+                        return NULL;
+                }
+
                 struct astdtype *exprType = analyze_expression(sem, atom->pointer.target, compile_time);
 
                 if (!exprType) {
@@ -494,6 +621,9 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                 if (compile_time)
                         *compile_time = false;
 
+                if (!analyze_function_definition(sem, atom))
+                        return NULL;
+
                 struct astdtype *type = semantics_new_type(sem, function_def_type(atom));
 
                 if (atom->holder && atom->holder->type == NODE_BINARY_OP) {
@@ -501,15 +631,6 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                                atom->line);
                         return NULL;
                 }
-
-                // Make sure nested functions are marked as nested
-//                struct astnode *enclosing;
-
-//                if ((enclosing = find_enclosing_function(atom->super)))
-//                        atom->holder = enclosing;
-
-                if (!analyze_function_definition(sem, atom))
-                        return NULL;
 
                 return type;
         }
@@ -520,7 +641,6 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
 struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *call)
 {
         struct astnode *symbol;
-        _Bool lambda = false;
 
         if (!(symbol = find_symbol(call->function_call.identifier, call->super))) {
                 printf("Attempting to call undefined function \"%s\". Error on line %ld.\n",
@@ -534,7 +654,6 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
                 if (type->type == ASTDTYPE_LAMBDA) {
                         // It's fine if the variable is lambda-typed and has a value assigned to it
                         if (declaration->declaration.value) {
-                                lambda = true;
                                 goto _continue;
                         }
 
@@ -562,7 +681,13 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
                 definition = value;
         }
 
-        size_t required_params = definition->function_def.params->node_compound.count;
+        size_t required_params;
+
+        if (definition->type == NODE_FUNCTION_DEFINITION)
+                required_params = definition->function_def.param_count;
+        else
+                required_params = definition->present_function.params->node_compound.count;
+
         size_t provided_params = call->function_call.values->node_compound.count;
 
         if (required_params != provided_params) {
@@ -578,8 +703,18 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 
         for (size_t i = 0; i < provided_params; i++) {
                 struct astnode *callValue = call->function_call.values->node_compound.array[i];
+
                 struct astdtype *valueType = analyze_expression(sem, callValue, NULL);
-                struct astnode *param = definition->function_def.params->node_compound.array[i];
+                if (!valueType)
+                        return NULL;
+
+                struct astnode *param;
+
+                if (definition->type == NODE_FUNCTION_DEFINITION)
+                        param = definition->function_def.params->node_compound.array[i];
+                else
+                        param = definition->present_function.params->node_compound.array[i];
+
                 struct astdtype *reqParamType = param->declaration.type;
 
                 if (!types_compatible(reqParamType, valueType)) {
@@ -596,6 +731,8 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
                         return NULL;
                 }
         }
+
+        call->function_call.definition = definition;
 
         return definition->function_def.type;
 }

@@ -37,6 +37,7 @@ enum nodetype : uint8_t {
         NODE_SYMBOL,
         NODE_GENERATED_FUNCTION,
         NODE_INCLUDE,
+        NODE_PRESENT_FUNCTION,
 
         // Memory safety
         NODE_WRAPPED
@@ -50,12 +51,23 @@ enum binaryop : uint8_t {
         BOP_ADD,
         BOP_SUB,
         BOP_MUL,
-        BOP_DIV
+        BOP_DIV,
+
+        BOP_OR,
+        BOP_AND,
+
+        BOP_LGREATER,
+        BOP_LGREQ,
+
+        BOP_RGREATER,
+        BOP_RGREQ
 };
 
 enum binaryop bop_from_lxtype(enum lxtype);
 
 const char *binaryop_string(enum binaryop);
+
+const char *binaryop_cstr(enum binaryop);
 
 enum symbol_type {
         SYMBOL_VARIABLE,
@@ -121,6 +133,9 @@ struct astnode {
                         char *identifier;
                         struct astdtype *type;
                         struct astnode *value;
+                        size_t number;
+                        char *generated_id;
+                        struct astnode *refers_to; // Used in capture groups
                 } declaration;
 
                 struct {
@@ -129,11 +144,13 @@ struct astnode {
 
                 struct {
                         char *identifier;
+                        struct astnode *var;
                 } variable;
 
                 struct {
                         char *identifier;
                         struct astnode *value;
+                        struct astnode *declaration;
                 } assignment;
 
                 struct {
@@ -146,11 +163,13 @@ struct astnode {
                         _Bool conditionless_resolve; // Managed by Semantic Analysis
                         struct astnode *attributes; // Compound
                         struct astnode *generated; // generated_function
+                        size_t param_count;
                 } function_def;
 
                 struct {
                         char *identifier;
                         struct astnode *values; // And so is this!
+                        struct astnode *definition;
                 } function_call;
 
                 struct {
@@ -187,6 +206,12 @@ struct astnode {
                         char *path;
                 } include;
 
+                struct {
+                        char *identifier;
+                        struct astnode *params;
+                        struct astdtype *type;
+                } present_function;
+
                 // -- Memory safety features --
                 struct {
                         struct astnode *node;
@@ -202,7 +227,8 @@ enum builtin_type : uint8_t {
         BUILTIN_INT16,
         BUILTIN_INT32,
         BUILTIN_INT64,
-        BUILTIN_GENERIC_BYTE
+        BUILTIN_GENERIC_BYTE,
+        BUILTIN_STRING
 };
 
 enum builtin_type builtin_from_string(char *);
@@ -253,6 +279,8 @@ struct astdtype *astdtype_builtin(enum builtin_type);
 
 struct astdtype *astdtype_void();
 
+struct astdtype *astdtype_string_type();
+
 struct astdtype *astdtype_custom(char *);
 
 struct astdtype *astdtype_lambda(struct astnode *, struct astdtype *);
@@ -290,6 +318,8 @@ struct astnode *astnode_binary(size_t, struct astnode *, struct astnode *, struc
 
 struct astnode *astnode_declaration(size_t, struct astnode *, _Bool, char *, struct astdtype *, struct astnode *);
 
+void declaration_generate_name(struct astnode *, size_t);
+
 struct astnode *astnode_pointer(size_t, struct astnode *, struct astnode *);
 
 struct astnode *astnode_variable(size_t, struct astnode *, char *);
@@ -318,7 +348,9 @@ struct astnode *astnode_copy_symbol(struct astnode *);
 
 struct astnode *astnode_generated_function(struct astnode *, size_t, enum gen_type);
 
-struct astnode *astnode_include(size_t, struct astnode *super, char *);
+struct astnode *astnode_include(size_t, struct astnode *, char *);
+
+struct astnode *astnode_present_function(size_t, struct astnode *, char *, struct astnode *, struct astdtype *);
 
 // Memory safety --
 

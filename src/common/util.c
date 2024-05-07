@@ -123,7 +123,7 @@ void ast_print(struct astnode *_node, size_t level)
                                 INDENTED("Variable Declaration");
                         }
 
-                        char *s = astdtype_string(node->declaration.type);
+                        s = astdtype_string(node->declaration.type);
 
                         printf(" '%s' [%s]", node->declaration.identifier, s);
 
@@ -199,6 +199,13 @@ void ast_print(struct astnode *_node, size_t level)
 
                 case NODE_VOID_PLACEHOLDER:
                 INDENTED("( Void - Nothing )\n");
+                        break;
+
+                case NODE_PRESENT_FUNCTION:
+                        s = astdtype_string(node->present_function.type);
+                        INDENTED("Linked function \"%s\" (%s):\n", node->present_function.identifier, s);
+                        free(s);
+                        ast_print(node->present_function.params, level + 1);
                         break;
 
                 default:

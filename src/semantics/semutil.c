@@ -12,8 +12,9 @@ void semantics_init(struct semantics *sem, struct astnode *types)
         sem->byte = astdtype_builtin(BUILTIN_GENERIC_BYTE);
         sem->_double = astdtype_builtin(BUILTIN_DOUBLE);
         sem->_void = astdtype_void();
+        sem->string = astdtype_string_type();
         sem->stuff = types;
-        sem->function_number = 0;
+        sem->symbol_counter = 0;
         sem->pristine = true;
 
         semantics_new_include(sem, "inttypes.h");
@@ -28,6 +29,7 @@ void semantics_free(struct semantics *sem)
         astdtype_free(sem->byte);
         astdtype_free(sem->_double);
         astdtype_free(sem->_void);
+        astdtype_free(sem->string);
 }
 
 static struct astnode *filter_symbol(char *id, struct astnode *node)
@@ -190,6 +192,10 @@ static _Bool types_compatible_advanced(struct astdtype *destination, struct astd
                 if (destination->builtin.datatype != source->builtin.datatype && pointer)
                         return false;
 
+                if ((source->builtin.datatype == BUILTIN_STRING && destination->builtin.datatype != BUILTIN_STRING) ||
+                    (source->builtin.datatype != BUILTIN_STRING && destination->builtin.datatype == BUILTIN_STRING))
+                        return false;
+
                 if ((quantify_type_size(destination) >= quantify_type_size(source)))
                         return true;
         }
@@ -224,6 +230,8 @@ size_t quantify_type_size(struct astdtype *type)
                         return sizeof(char);
                 case BUILTIN_DOUBLE:
                         return sizeof(double);
+                case BUILTIN_STRING:
+                        return 64 / 8;
                 default:
                         return 0;
         }
@@ -285,14 +293,15 @@ struct astdtype *function_def_type(struct astnode *fdef)
         struct astnode *params = fdef->function_def.params;
 
         for (size_t i = 0; i < params->node_compound.count; i++)
-                astnode_push_compound(types, astnode_data_type(params->node_compound.array[i]->declaration.type));
+                astnode_push_compound(types,
+                                      astnode_data_type(UNWRAP(params->node_compound.array[i])->declaration.type));
 
         return astdtype_lambda(types, returnType);
 }
 
 void semantics_new_function(struct semantics *sem, struct astnode *function, enum gen_type type)
 {
-        struct astnode *gf = astnode_generated_function(function, sem->function_number++, type);
+        struct astnode *gf = astnode_generated_function(function, sem->symbol_counter++, type);
         astnode_push_compound(sem->stuff, gf);
         function->function_def.generated = gf;
 }

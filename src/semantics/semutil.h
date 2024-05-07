@@ -12,10 +12,11 @@ struct semantics {
         struct astdtype *_double;
         struct astdtype *byte;
         struct astdtype *_void;
+        struct astdtype *string;
 
         struct astnode *stuff;
 
-        size_t function_number;
+        size_t symbol_counter;
 
         _Bool pristine; // TRUE if nothing but include nodes were analyzed up until this time
 };

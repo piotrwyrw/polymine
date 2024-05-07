@@ -18,6 +18,7 @@ enum builtin_type builtin_from_string(char *str)
         RETURN_IF("int16", BUILTIN_INT16)
         RETURN_IF("int32", BUILTIN_INT32)
         RETURN_IF("int64", BUILTIN_INT64)
+        RETURN_IF("string", BUILTIN_STRING)
 
 #undef RETURN_IF
 
@@ -36,6 +37,7 @@ const char *builtin_string(enum builtin_type type)
                 AUTO(BUILTIN_INT64)
                 AUTO(BUILTIN_GENERIC_BYTE)
                 AUTO(BUILTIN_CHAR)
+                AUTO(BUILTIN_STRING)
         }
 #undef AUTO
 }
@@ -87,6 +89,13 @@ struct astdtype *astdtype_builtin(enum builtin_type builtin)
 struct astdtype *astdtype_void()
 {
         return astdtype_generic(ASTDTYPE_VOID);
+}
+
+struct astdtype *astdtype_string_type()
+{
+        struct astdtype *wrapper = astdtype_generic(ASTDTYPE_BUILTIN);
+        wrapper->builtin.datatype = BUILTIN_STRING;
+        return wrapper;
 }
 
 struct astdtype *astdtype_custom(char *name)
@@ -145,6 +154,9 @@ char *astdtype_string(struct astdtype *type)
                                 break;
                         case BUILTIN_GENERIC_BYTE:
                                 strcat(typename, "byte");
+                                break;
+                        case BUILTIN_STRING:
+                                strcat(typename, "string");
                                 break;
                         default:
                                 strcat(typename, "<Unknown>");
@@ -214,6 +226,15 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_SYMBOL)
                 AUTO(NODE_RESOLVE)
                 AUTO(NODE_DATA_TYPE)
+                AUTO(NODE_INCLUDE)
+                AUTO(NODE_COMPOUND)
+                AUTO(NODE_GENERATED_FUNCTION)
+                AUTO(NODE_ATTRIBUTE)
+                AUTO(NODE_IF)
+                AUTO(NODE_WRAPPED)
+                AUTO(NODE_VOID_PLACEHOLDER)
+                AUTO(NODE_NOTHING)
+                AUTO(NODE_UNDEFINED)
 #undef AUTO
                 default:
                         return "Unknown Node";
@@ -231,6 +252,18 @@ enum binaryop bop_from_lxtype(enum lxtype type)
                         return BOP_DIV;
                 case LX_ASTERISK:
                         return BOP_MUL;
+                case LX_DOUBLE_OR:
+                        return BOP_OR;
+                case LX_DOUBLE_AND:
+                        return BOP_AND;
+                case LX_LGREATER:
+                        return BOP_LGREATER;
+                case LX_LGREQUAL:
+                        return BOP_LGREQ;
+                case LX_RGREATER:
+                        return BOP_RGREATER;
+                case LX_RGREQUAL:
+                        return BOP_RGREQ;
                 default:
                         return BOP_UNKNOWN;
         }
@@ -245,8 +278,42 @@ const char *binaryop_string(enum binaryop op)
                 AUTO(BOP_SUB)
                 AUTO(BOP_MUL)
                 AUTO(BOP_DIV)
+                AUTO(BOP_RGREQ)
+                AUTO(BOP_RGREATER)
+                AUTO(BOP_LGREQ)
+                AUTO(BOP_LGREATER)
+                AUTO(BOP_AND)
+                AUTO(BOP_OR)
         }
 #undef AUTO
+}
+
+const char *binaryop_cstr(enum binaryop op)
+{
+        switch (op) {
+                case BOP_ADD:
+                        return "+";
+                case BOP_SUB:
+                        return "-";
+                case BOP_MUL:
+                        return "*";
+                case BOP_DIV:
+                        return "/";
+                case BOP_AND:
+                        return "&&";
+                case BOP_OR:
+                        return "||";
+                case BOP_LGREATER:
+                        return ">";
+                case BOP_LGREQ:
+                        return ">=";
+                case BOP_RGREATER:
+                        return "<";
+                case BOP_RGREQ:
+                        return "<=";
+                default:
+                        return "?";
+        }
 }
 
 char *symbol_type_humanstr(enum symbol_type type)
@@ -288,6 +355,8 @@ void astnode_free(struct astnode *node)
                 case NODE_VARIABLE_DECL:
                         astnode_free(node->declaration.value);
                         free(node->declaration.identifier);
+                        if (node->declaration.generated_id)
+                                free(node->declaration.generated_id);
                         break;
                 case NODE_POINTER:
                         astnode_free(node->pointer.target);
@@ -320,12 +389,17 @@ void astnode_free(struct astnode *node)
                 case NODE_IF:
                         astnode_free(node->if_statement.expr);
                         astnode_free(node->if_statement.block);
+                        astnode_free(node->if_statement.next_branch);
                         break;
                 case NODE_GENERATED_FUNCTION:
                         free(node->generated_function.generated_id);
                         break;
                 case NODE_INCLUDE:
                         free(node->include.path);
+                        break;
+                case NODE_PRESENT_FUNCTION:
+                        free(node->present_function.identifier);
+                        astnode_free(node->present_function.params);
                         break;
                 case NODE_DATA_TYPE:
                         if (!freeDataTypes)
@@ -464,7 +538,17 @@ struct astnode *astnode_declaration(size_t line, struct astnode *block, _Bool co
         node->declaration.type = type;
         node->declaration.value = value;
         node->declaration.identifier = strdup(str);
+        node->declaration.generated_id = NULL;
+        node->declaration.number = 0;
+        node->declaration.refers_to = NULL;
         return node;
+}
+
+void declaration_generate_name(struct astnode *decl, size_t number)
+{
+        decl->declaration.generated_id = calloc(100, sizeof(char));
+        decl->declaration.number = number;
+        sprintf(decl->declaration.generated_id, "_var_%s%ld", decl->declaration.identifier, number);
 }
 
 struct astnode *astnode_pointer(size_t line, struct astnode *block, struct astnode *to)
@@ -478,6 +562,7 @@ struct astnode *astnode_variable(size_t line, struct astnode *block, char *str)
 {
         struct astnode *node = astnode_generic(NODE_VARIABLE_USE, line, block);
         node->variable.identifier = strdup(str);
+        node->variable.var = NULL;
         return node;
 }
 
@@ -486,6 +571,7 @@ struct astnode *astnode_assignment(size_t line, struct astnode *block, char *ide
         struct astnode *node = astnode_generic(NODE_VARIABLE_ASSIGNMENT, line, block);
         node->assignment.value = value;
         node->assignment.identifier = strdup(identifier);
+        node->assignment.declaration = NULL;
         return node;
 }
 
@@ -501,6 +587,7 @@ struct astnode *astnode_function_definition(size_t line, struct astnode *superbl
         node->function_def.attributes = attrs;
         node->function_def.generated = NULL;
         node->function_def.nested = false;
+        node->function_def.param_count = parameters->node_compound.count;
         return node;
 }
 
@@ -509,6 +596,7 @@ struct astnode *astnode_function_call(size_t line, struct astnode *block, char *
         struct astnode *node = astnode_generic(NODE_FUNCTION_CALL, line, block);
         node->function_call.identifier = strdup(identifier);
         node->function_call.values = values;
+        node->function_call.definition = NULL;
         return node;
 }
 
@@ -578,18 +666,36 @@ struct astnode *astnode_generated_function(struct astnode *definition, size_t nu
                 if (!coreId && definition->holder && definition->holder->type == NODE_VARIABLE_DECL)
                         coreId = definition->holder->declaration.identifier;
 
-                sprintf(node->generated_function.generated_id, "__lambda%ld_%s", number,
+                sprintf(node->generated_function.generated_id, "_fn_lambda%ld_%s", number,
                         coreId ? coreId : "anon");
-        } else
-                sprintf(node->generated_function.generated_id, "__%s", definition->function_def.identifier);
+        } else {
+                char *id = definition->function_def.identifier;
+
+                if (strcmp(definition->function_def.identifier, "main") == 0) {
+                        id = "polymine_bootstrap";
+                        sprintf(node->generated_function.generated_id, "_fn_%s", id);
+                } else {
+                        sprintf(node->generated_function.generated_id, "_fn_%s%ld", id, number);
+                }
+        }
 
         return node;
 }
 
-struct astnode *astnode_include(size_t line, struct astnode *super, char *path) {
+struct astnode *astnode_include(size_t line, struct astnode *super, char *path)
+{
         struct astnode *node = astnode_generic(NODE_INCLUDE, line, super);
         node->include.path = strdup(path);
         return node;
+}
+
+struct astnode *astnode_present_function(size_t line, struct astnode *super, char *id, struct astnode *params, struct astdtype *type)
+{
+        struct astnode *linked = astnode_generic(NODE_PRESENT_FUNCTION, line, super);
+        linked->present_function.type = type;
+        linked->present_function.params = params;
+        linked->present_function.identifier = strdup(id);
+        return linked;
 }
 
 struct astnode *astnode_wrap(struct astnode *n)

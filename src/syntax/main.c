@@ -34,13 +34,19 @@ int main(void)
 
         struct astnode *node = parse(&p);
 
-        if (!node)
-                goto exit;
+        if (!node) {
+                printf("-- Parsing failed --\n");
+                goto syntax_error;
+        }
 
         struct semantics sem;
         semantics_init(&sem, p.types);
 
-        analyze_program(&sem, node);
+        if (!analyze_program(&sem, node)) {
+                printf("-- Semantic analysis failed --\n");
+                goto semantics_error;
+        }
+
         ast_print(node, 0);
 
         // --- Code generation
@@ -55,11 +61,13 @@ int main(void)
 
         // ---
 
+        semantics_error:
+
         astnode_free(node);
 
         semantics_free(&sem);
 
-        exit:
+        syntax_error:
 
         parser_free(&p);
 

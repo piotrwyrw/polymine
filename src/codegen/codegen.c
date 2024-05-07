@@ -1,6 +1,5 @@
 
 #include "codegen.h"
-#include "../semantics/semutil.h"
 
 #define EMIT(...) fprintf(gen->out, __VA_ARGS__)
 #define EMITB(...) EMIT(__VA_ARGS__); break
@@ -12,6 +11,8 @@ void codegen_init(struct codegen *codegen, struct astnode *program, struct astno
         codegen->program = program;
         codegen->stuff = stuff;
         codegen->out = out;
+        codegen->param_count = 0;
+        codegen->param_no = 0;
 }
 
 static void *gen_lambdas(_codegen, struct astnode *node)
@@ -22,7 +23,7 @@ static void *gen_lambdas(_codegen, struct astnode *node)
         if (node->generated_function.type != GENERATED_LAMBDA)
                 return NULL;
 
-        gen_any(gen, node);
+        gen_function_definition(gen, node);
         return NULL;
 }
 
@@ -31,36 +32,36 @@ static void *gen_includes(_codegen, struct astnode *node)
         if (node->type != NODE_INCLUDE)
                 return NULL;
 
-        gen_any(gen, node);
+        gen_include(gen, node);
         return NULL;
 }
 
 static void gen_bootstrap(_codegen)
 {
-        EMIT("void __main();\n"
+        EMIT("void _fn_polymine_bootstrap();\n"
              "\n"
              "int main(void) {\n"
-             "        __main();\n"
+             "        _fn_polymine_bootstrap();\n"
              "        return 0;\n"
              "}\n\n");
 }
 
-void gen_generate(struct codegen *gen)
+void gen_generate(_codegen)
 {
         printf("Generating C code ..\n");
 
-        // First generate the includes ..
+        // First generate the includes …
         astnode_compound_foreach(gen->stuff, gen, (void *) gen_includes);
 
         EMIT("\n");
 
-        // .. then the bootstrapping code ..
+        // … then the bootstrapping code …
         gen_bootstrap(gen);
 
-        // .. then the lambdas ..
+        // … then the lambdas …
         astnode_compound_foreach(gen->stuff, gen, (void *) gen_lambdas);
 
-        // .. and then, finally, move on to the actual program code
+        // … and then, finally, move on to the actual program code
         gen_any(gen, gen->program);
 
         printf("Code generation done!\n");
@@ -78,21 +79,111 @@ void gen_any(_codegen, struct astnode *node)
                 case NODE_PROGRAM:
                         gen_compound(gen, node->program.block->block.nodes);
                         break;
+                case NODE_BLOCK:
+                        gen_compound(gen, node->block.nodes);
+                        break;
+                case NODE_COMPOUND:
+                        gen_compound(gen, node);
+                        break;
                 case NODE_GENERATED_FUNCTION:
                 case NODE_FUNCTION_DEFINITION:
+                        if (node->function_def.nested)
+                                break;
+
                         gen_function_definition(gen, node);
                         break;
+                case NODE_VARIABLE_DECL:
+                        gen_variable_declaration(gen, node);
+                        break;
                 case NODE_INCLUDE:
-                        gen_include(gen, node);
+                        break;
+                case NODE_RESOLVE:
+                        gen_resolve(gen, node);
+                        break;
+                case NODE_FUNCTION_CALL:
+                case NODE_BINARY_OP:
+                case NODE_STRING_LITERAL:
+                case NODE_FLOAT_LITERAL:
+                case NODE_INTEGER_LITERAL:
+                        gen_expression(gen, node);
+                        if (!node->holder)
+                                EMIT(";\n");
+                        break;
+                case NODE_PRESENT_FUNCTION:
+                        break;
+                case NODE_IF:
+                        gen_if(gen, node, 0);
+                        break;
+                case NODE_VARIABLE_ASSIGNMENT:
+                        gen_assignment(gen, node);
+                        break;
+                case NODE_NOTHING:
                         break;
                 default:
+                        printf("Unknown node type passed to gen_any(..): %s\n", nodetype_string(node->type));
                         break;
         }
+}
+
+void gen_resolve(_codegen, struct astnode *node)
+{
+        EMIT("return ");
+        gen_expression(gen, node->resolve.value);
+        EMIT(";\n");
+}
+
+void gen_if(_codegen, struct astnode *node, size_t branch_number)
+{
+        if (branch_number == 0)
+                EMIT("if");
+        else {
+                EMIT("else");
+                if (node->if_statement.expr)
+                        EMIT(" if");
+                else
+                        EMIT(" ");
+        }
+
+        if (node->if_statement.expr) {
+                EMIT(" (");
+                gen_expression(gen, node->if_statement.expr);
+                EMIT(") ");
+        }
+
+        EMIT("{\n");
+
+        gen_any(gen, node->if_statement.block);
+
+        EMIT("}\n");
+
+        if (node->if_statement.next_branch)
+                gen_if(gen, node->if_statement.next_branch, branch_number + 1);
 }
 
 void gen_include(_codegen, struct astnode *node)
 {
         EMIT("#include <%s>\n", node->include.path);
+}
+
+static void *gen_param(_codegen, struct astnode *_param)
+{
+        struct astnode *param = UNWRAP(_param);
+
+        if (param->type == NODE_VARIABLE_DECL) {
+                gen_type(gen, param->declaration.type, param->declaration.generated_id);
+
+                if (param->declaration.type->type != ASTDTYPE_LAMBDA)
+                        EMIT(" %s", param->declaration.generated_id);
+        } else {
+                gen_type(gen, param->data_type.adt, NULL);
+        }
+
+        if (gen->param_no + 1 < gen->param_count)
+                EMIT(", ");
+
+        gen->param_no++;
+
+        return NULL;
 }
 
 void gen_type(_codegen, struct astdtype *type, char *identifier)
@@ -115,6 +206,8 @@ void gen_type(_codegen, struct astdtype *type, char *identifier)
                                 EMITB("int32_t");
                                 case BUILTIN_INT64:
                                 EMITB("int64_t");
+                                case BUILTIN_STRING:
+                                EMITB("char *");
                                 case BUILTIN_UNDEFINED:
                                         break; // Shouldn't happen
                         }
@@ -123,7 +216,21 @@ void gen_type(_codegen, struct astdtype *type, char *identifier)
                         gen_type(gen, type->pointer.to, NULL);
                         EMITB("*");
                 case ASTDTYPE_LAMBDA:
-                        break; // TODO
+                        gen_type(gen, type->lambda.returnType, NULL);
+                        EMIT("(*%s)(", identifier ? identifier : "");
+
+                        size_t oldCount = gen->param_count;
+                        size_t oldNo = gen->param_no;
+
+                        gen->param_count = type->lambda.paramTypes->node_compound.count;
+                        gen->param_no = 0;
+
+                        astnode_compound_foreach(type->lambda.paramTypes, gen, (void *) gen_param);
+
+                        gen->param_count = oldCount;
+                        gen->param_no = oldNo;
+
+                        EMITB(")");
                 case ASTDTYPE_CUSTOM:
                 EMITB("%s", type->custom.name);
         }
@@ -139,7 +246,118 @@ void gen_function_definition(_codegen, struct astnode *_fdef)
                 fdef = _fdef->generated_function.definition;
 
         gen_type(gen, fdef->function_def.type, fdef->function_def.generated->generated_function.generated_id);
-        EMIT(" %s()\n{\n}\n\n", fdef->function_def.generated->generated_function.generated_id);
+        EMIT(" %s(", fdef->function_def.generated->generated_function.generated_id);
+
+        gen->param_count = fdef->function_def.params->node_compound.count;
+        gen->param_no = 0;
+
+        // Note: By now, the capture group is appended at the end of the parameter list
+        astnode_compound_foreach(fdef->function_def.params, gen, (void *) gen_param);
+
+        EMIT(")\n{\n");
+        gen_any(gen, fdef->function_def.block);
+        EMIT("}\n\n");
+}
+
+void gen_variable_declaration(_codegen, struct astnode *decl)
+{
+        gen_type(gen, decl->declaration.type, decl->declaration.generated_id);
+        if (decl->declaration.type->type != ASTDTYPE_LAMBDA)
+                EMIT(" %s", decl->declaration.generated_id);
+        if (decl->declaration.value) {
+                EMIT(" = ");
+                gen_expression(gen, decl->declaration.value);
+        }
+        EMIT(";\n");
+}
+
+void gen_assignment(_codegen, struct astnode *assignment)
+{
+        EMIT("%s = ", assignment->assignment.declaration->declaration.generated_id);
+        gen_expression(gen, assignment->assignment.value);
+        EMIT(";\n");
+}
+
+static void *gen_call_params(_codegen, struct astnode *expr)
+{
+        gen_expression(gen, expr);
+
+        if (gen->param_no + 1 < gen->param_count)
+                EMIT(", ");
+
+        gen->param_no++;
+
+        return NULL;
+}
+
+static void *gen_capture_values(_codegen, struct astnode *var)
+{
+        EMIT("%s", var->declaration.refers_to->declaration.generated_id);
+        if (gen->param_no + 1 < gen->param_count)
+                EMIT(", ");
+
+        gen->param_no++;
+
+        return NULL;
+}
+
+void gen_expression(_codegen, struct astnode *expr)
+{
+        struct astnode *n;
+        switch (expr->type) {
+                case NODE_INTEGER_LITERAL:
+                EMITB("%lld", expr->integer_literal.integerValue);
+                case NODE_FLOAT_LITERAL:
+                EMITB("%f", expr->float_literal.floatValue);
+                case NODE_STRING_LITERAL:
+                EMITB("\"%s\"", expr->string_literal.value);
+                case NODE_FUNCTION_DEFINITION:
+                EMITB("%s", expr->function_def.generated->generated_function.generated_id);
+                case NODE_VARIABLE_USE:
+                EMITB("%s", expr->variable.var->declaration.generated_id);
+                case NODE_BINARY_OP:
+                        gen_expression(gen, expr->binary.left);
+                        EMIT(" %s ", binaryop_cstr(expr->binary.op));
+                        gen_expression(gen, expr->binary.right);
+                        break;
+                case NODE_FUNCTION_CALL:
+                        n = expr->function_call.definition;
+
+                        char *id = (n->type == NODE_FUNCTION_DEFINITION)
+                                   ? expr->function_call.definition->function_def.generated->generated_function.generated_id
+                                   : expr->function_call.identifier;
+
+                        if (expr->function_call.definition->holder &&
+                            expr->function_call.definition->holder->type == NODE_VARIABLE_DECL)
+                                id = expr->function_call.definition->holder->declaration.generated_id;
+
+                        EMIT("%s(", id);
+
+                        gen->param_count = expr->function_call.values->node_compound.count;
+                        if (expr->function_call.definition->function_def.capture)
+                                gen->param_count += expr->function_call.definition->function_def.capture->node_compound.count;
+
+                        gen->param_no = 0;
+
+                        // All the function call values ...
+                        astnode_compound_foreach(expr->function_call.values, gen, (void *) gen_call_params);
+
+                        // ... and finally, the capture group
+                        if (expr->function_call.definition->function_def.capture)
+                                astnode_compound_foreach(expr->function_call.definition->function_def.capture, gen,
+                                                         (void *) gen_capture_values);
+
+                        EMIT(")");
+                        break;
+                case NODE_POINTER:
+                        EMIT("&(");
+                        gen_expression(gen, expr->pointer.target);
+                        EMITB(")");
+                case NODE_VOID_PLACEHOLDER:
+                EMITB("/* void */");
+                default:
+                        break;
+        }
 }
 
 #undef EMITB
