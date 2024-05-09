@@ -509,7 +509,7 @@ struct astnode *parse_resolve(struct parser *p)
 
         struct astnode *expr;
 
-        if (p->current.type == LX_SEMI) {
+        if (p->current.type == LX_IDEN && (strcmp(p->current.value, "nothing") == 0)) {
                 expr = astnode_void_placeholder(p->line, p->block);
                 parser_advance(p);
         } else {
