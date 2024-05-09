@@ -171,23 +171,6 @@ static _Bool types_compatible_advanced(struct astdtype *destination, struct astd
         if (destination->type == ASTDTYPE_CUSTOM && strcmp(destination->custom.name, source->custom.name) == 0)
                 return true;
 
-        if (destination->type == ASTDTYPE_LAMBDA) {
-                if (!types_compatible(destination->lambda.returnType, source->lambda.returnType))
-                        return false;
-
-                struct astnode *paramTypes = destination->lambda.paramTypes;
-
-                if (paramTypes->node_compound.count != source->lambda.paramTypes->node_compound.count)
-                        return false;
-
-                for (size_t i = 0; i < paramTypes->node_compound.count; i++)
-                        if (!types_compatible(paramTypes->node_compound.array[i]->data_type.adt,
-                                              source->lambda.paramTypes->node_compound.array[i]->data_type.adt))
-                                return false;
-
-                return true;
-        }
-
         if (destination->type == ASTDTYPE_BUILTIN) {
                 if (destination->builtin.datatype != source->builtin.datatype && pointer)
                         return false;
@@ -286,22 +269,9 @@ struct astdtype *semantics_new_type(struct semantics *sem, struct astdtype *type
         return type;
 }
 
-struct astdtype *function_def_type(struct astnode *fdef)
+void semantics_new_function(struct semantics *sem, struct astnode *function)
 {
-        struct astnode *types = astnode_empty_compound(fdef->line, fdef->super);
-        struct astdtype *returnType = fdef->function_def.type;
-        struct astnode *params = fdef->function_def.params;
-
-        for (size_t i = 0; i < params->node_compound.count; i++)
-                astnode_push_compound(types,
-                                      astnode_data_type(UNWRAP(params->node_compound.array[i])->declaration.type));
-
-        return astdtype_lambda(types, returnType);
-}
-
-void semantics_new_function(struct semantics *sem, struct astnode *function, enum gen_type type)
-{
-        struct astnode *gf = astnode_generated_function(function, sem->symbol_counter++, type);
+        struct astnode *gf = astnode_generated_function(function, sem->symbol_counter++);
         astnode_push_compound(sem->stuff, gf);
         function->function_def.generated = gf;
 }

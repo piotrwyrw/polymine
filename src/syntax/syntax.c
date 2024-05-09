@@ -356,12 +356,11 @@ struct astnode *parse_function_parameters(struct parser *p)
 struct astnode *parse_function_definition(struct parser *p)
 {
         if (p->current.type != LX_IDEN) {
-                printf("Expected 'fn' or 'anon' keyword at the start of a function definition. Got %s (\"%s\") on line %ld.\n",
+                printf("Expected 'fn' keyword at the start of a function definition. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
         }
 
-        _Bool anon = strcmp(p->current.value, "anon") == 0;
         size_t line = p->line;
 
         struct astnode *attrs = NULL;
@@ -377,16 +376,15 @@ struct astnode *parse_function_definition(struct parser *p)
         if (!attrs)
                 attrs = astnode_empty_compound(p->line, p->block);
 
-        if (p->current.type != LX_IDEN && !anon) {
+        if (p->current.type != LX_IDEN) {
                 printf("Expected function identifier after 'fn' keyword. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
         }
 
-        char *id = anon ? NULL : strdup(p->current.value);
+        char *id = strdup(p->current.value);
 
-        if (!anon)
-                parser_advance(p);
+        parser_advance(p);
 
         struct astnode *params = NULL;
 
@@ -420,57 +418,12 @@ struct astnode *parse_function_definition(struct parser *p)
                 return NULL;
         }
 
-        struct astnode *capture = NULL;
-
-        if (p->current.type == LX_DOUBLE_OR) {
-                parser_advance(p);
-
-                capture = astnode_empty_compound(p->line, p->block);
-
-                while (p->current.type != LX_UNDEFINED) {
-                        if (p->current.type != LX_IDEN) {
-                                printf("Expected identifier after the captures keyword. Got %s (\"%s\") on line %ld.\n",
-                                       lxtype_string(p->current.type), p->current.value, p->line);
-                                free(id);
-                                astnode_free(params);
-                                astnode_free(attrs);
-                                astnode_free(capture);
-                                return NULL;
-                        }
-
-                        astnode_push_compound(capture,
-                                              astnode_declaration(p->line, p->block, true, p->current.value, NULL,
-                                                                  NULL));
-
-                        parser_advance(p);
-
-                        if (p->current.type == LX_COMMA)
-                                parser_advance(p);
-
-                        if (p->current.type == LX_LBRACE)
-                                break;
-                        else if (p->current.type == LX_IDEN)
-                                continue;
-
-                        if (p->current.type != LX_COMMA && p->current.type != LX_LBRACE) {
-                                printf("Expected ',' and more capture variables, or the function block. Got %s (\"%s\") on line %ld.\n",
-                                       lxtype_string(p->current.type), p->current.value, p->line);
-                                free(id);
-                                astnode_free(attrs);
-                                astnode_free(params);
-                                astnode_free(capture);
-                                return NULL;
-                        }
-                }
-        }
-
         if (p->current.type != LX_LBRACE) {
                 printf("Expected '{' after function parameter block. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 free(id);
                 astnode_free(attrs);
                 astnode_free(params);
-                astnode_free(capture);
                 return NULL;
         }
 
@@ -480,17 +433,13 @@ struct astnode *parse_function_definition(struct parser *p)
                 free(id);
                 astnode_free(attrs);
                 astnode_free(params);
-                astnode_free(capture);
                 return NULL;
         }
 
-        struct astnode *fdef = astnode_function_definition(line, p->block, id, params, type, capture, block, attrs);
+        struct astnode *fdef = astnode_function_definition(line, p->block, id, params, type, block, attrs);
 
         fdef->function_def.params->holder = fdef;
         fdef->function_def.block->holder = fdef;
-
-        if (fdef->function_def.capture)
-                fdef->function_def.capture->holder = fdef;
 
         free(id);
 
@@ -719,82 +668,6 @@ static struct astdtype *actually_parse_type(struct parser *p)
                 return NULL;
         }
 
-        if (strcmp(p->current.value, "lambda") == 0) {
-                parser_advance(p);
-
-                if (p->current.type != LX_LPAREN) {
-                        printf("Expected '(' after function_def type. Got %s (\"%s\") on line %ld.\n",
-                               lxtype_string(p->current.type), p->current.value, p->line);
-                        return NULL;
-                }
-
-                parser_advance(p);
-
-                struct astnode *pTypes = astnode_empty_compound(p->line, p->block);
-
-                while (p->current.type != LX_UNDEFINED) {
-                        if (p->current.type == LX_RPAREN) {
-                                parser_advance(p);
-                                break;
-                        }
-
-                        if (p->current.type != LX_IDEN) {
-                                printf("Expected lambda parameter type. Got %s (\"%s\") on line %ld.\n",
-                                       lxtype_string(p->current.type), p->current.value, p->line);
-                                astnode_free(pTypes);
-                                return NULL;
-                        }
-
-                        struct astdtype *type = parse_type(p);
-
-                        if (!type) {
-                                astnode_free(pTypes);
-                                return NULL;
-                        }
-
-                        astnode_push_compound(pTypes, astnode_data_type(type));
-
-                        if (p->current.type == LX_COMMA) {
-                                parser_advance(p);
-                                continue;
-                        }
-
-                        if (p->current.type == LX_RPAREN) {
-                                parser_advance(p);
-                                break;
-                        }
-
-                        printf("Expected ',' and more lambda parameter types. Got %s (\"%s\") on line %ld.\n",
-                               lxtype_string(p->current.type), p->current.value, p->line);
-
-                        astnode_free(pTypes);
-
-                        return NULL;
-                }
-
-                if (p->current.type != LX_MOV_RIGHT) {
-                        printf("Expected '->' after lambda parameters. Got %s (\"%s\") on line %ld.\n",
-                               lxtype_string(p->current.type), p->current.value, p->line);
-
-                        astnode_free(pTypes);
-
-                        return NULL;
-                }
-
-                parser_advance(p);
-
-                struct astdtype *type = parse_type(p);
-
-                if (!type) {
-                        astnode_free(pTypes);
-                        return NULL;
-                }
-
-                struct astdtype *lambda = astdtype_lambda(pTypes, type);
-
-                return lambda;
-        }
-
         if (strcmp(p->current.value, "void") == 0) {
                 parser_advance(p);
 
@@ -945,7 +818,7 @@ struct astnode *parse_atom(struct parser *p)
         }
 
         if (p->current.type == LX_IDEN &&
-            (strcmp(p->current.value, "fn") == 0 || strcmp(p->current.value, "anon") == 0))
+            (strcmp(p->current.value, "fn") == 0))
                 return parse_function_definition(p);
 
         if (p->current.type == LX_STRING)

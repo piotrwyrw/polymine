@@ -160,8 +160,6 @@ void ast_print(struct astnode *_node, size_t level)
                                  s);
                         free(s);
                         ast_print(node->function_def.params, level + 1);
-                        if (node->function_def.capture)
-                                ast_print(node->function_def.capture, level + 1);
                         ast_print(node->function_def.block, level + 1);
                         ast_print(node->function_def.attributes, level + 1);
                         break;

@@ -15,18 +15,6 @@ void codegen_init(struct codegen *codegen, struct astnode *program, struct astno
         codegen->param_no = 0;
 }
 
-static void *gen_lambdas(_codegen, struct astnode *node)
-{
-        if (node->type != NODE_GENERATED_FUNCTION)
-                return NULL;
-
-        if (node->generated_function.type != GENERATED_LAMBDA)
-                return NULL;
-
-        gen_function_definition(gen, node);
-        return NULL;
-}
-
 static void *gen_includes(_codegen, struct astnode *node)
 {
         if (node->type != NODE_INCLUDE)
@@ -58,9 +46,6 @@ void gen_generate(_codegen)
         // … then the bootstrapping code …
         gen_bootstrap(gen);
 
-        // … then the lambdas …
-        astnode_compound_foreach(gen->stuff, gen, (void *) gen_lambdas);
-
         // … and then, finally, move on to the actual program code
         gen_any(gen, gen->program);
 
@@ -87,9 +72,6 @@ void gen_any(_codegen, struct astnode *node)
                         break;
                 case NODE_GENERATED_FUNCTION:
                 case NODE_FUNCTION_DEFINITION:
-                        if (node->function_def.nested)
-                                break;
-
                         gen_function_definition(gen, node);
                         break;
                 case NODE_VARIABLE_DECL:
@@ -169,14 +151,9 @@ static void *gen_param(_codegen, struct astnode *_param)
 {
         struct astnode *param = UNWRAP(_param);
 
-        if (param->type == NODE_VARIABLE_DECL) {
-                gen_type(gen, param->declaration.type, param->declaration.generated_id);
+        gen_type(gen, param->declaration.type, param->declaration.generated_id);
 
-                if (param->declaration.type->type != ASTDTYPE_LAMBDA)
-                        EMIT(" %s", param->declaration.generated_id);
-        } else {
-                gen_type(gen, param->data_type.adt, NULL);
-        }
+        EMIT(" %s", param->declaration.generated_id);
 
         if (gen->param_no + 1 < gen->param_count)
                 EMIT(", ");
@@ -215,22 +192,6 @@ void gen_type(_codegen, struct astdtype *type, char *identifier)
                 case ASTDTYPE_POINTER:
                         gen_type(gen, type->pointer.to, NULL);
                         EMITB("*");
-                case ASTDTYPE_LAMBDA:
-                        gen_type(gen, type->lambda.returnType, NULL);
-                        EMIT("(*%s)(", identifier ? identifier : "");
-
-                        size_t oldCount = gen->param_count;
-                        size_t oldNo = gen->param_no;
-
-                        gen->param_count = type->lambda.paramTypes->node_compound.count;
-                        gen->param_no = 0;
-
-                        astnode_compound_foreach(type->lambda.paramTypes, gen, (void *) gen_param);
-
-                        gen->param_count = oldCount;
-                        gen->param_no = oldNo;
-
-                        EMITB(")");
                 case ASTDTYPE_CUSTOM:
                 EMITB("%s", type->custom.name);
         }
@@ -251,7 +212,6 @@ void gen_function_definition(_codegen, struct astnode *_fdef)
         gen->param_count = fdef->function_def.params->node_compound.count;
         gen->param_no = 0;
 
-        // Note: By now, the capture group is appended at the end of the parameter list
         astnode_compound_foreach(fdef->function_def.params, gen, (void *) gen_param);
 
         EMIT(")\n{\n");
@@ -262,8 +222,6 @@ void gen_function_definition(_codegen, struct astnode *_fdef)
 void gen_variable_declaration(_codegen, struct astnode *decl)
 {
         gen_type(gen, decl->declaration.type, decl->declaration.generated_id);
-        if (decl->declaration.type->type != ASTDTYPE_LAMBDA)
-                EMIT(" %s", decl->declaration.generated_id);
         if (decl->declaration.value) {
                 EMIT(" = ");
                 gen_expression(gen, decl->declaration.value);
@@ -282,17 +240,6 @@ static void *gen_call_params(_codegen, struct astnode *expr)
 {
         gen_expression(gen, expr);
 
-        if (gen->param_no + 1 < gen->param_count)
-                EMIT(", ");
-
-        gen->param_no++;
-
-        return NULL;
-}
-
-static void *gen_capture_values(_codegen, struct astnode *var)
-{
-        EMIT("%s", var->declaration.refers_to->declaration.generated_id);
         if (gen->param_no + 1 < gen->param_count)
                 EMIT(", ");
 
@@ -327,25 +274,13 @@ void gen_expression(_codegen, struct astnode *expr)
                                    ? expr->function_call.definition->function_def.generated->generated_function.generated_id
                                    : expr->function_call.identifier;
 
-                        if (expr->function_call.definition->holder &&
-                            expr->function_call.definition->holder->type == NODE_VARIABLE_DECL)
-                                id = expr->function_call.definition->holder->declaration.generated_id;
-
                         EMIT("%s(", id);
 
                         gen->param_count = expr->function_call.values->node_compound.count;
-                        if (expr->function_call.definition->function_def.capture)
-                                gen->param_count += expr->function_call.definition->function_def.capture->node_compound.count;
 
                         gen->param_no = 0;
 
-                        // All the function call values ...
                         astnode_compound_foreach(expr->function_call.values, gen, (void *) gen_call_params);
-
-                        // ... and finally, the capture group
-                        if (expr->function_call.definition->function_def.capture)
-                                astnode_compound_foreach(expr->function_call.definition->function_def.capture, gen,
-                                                         (void *) gen_capture_values);
 
                         EMIT(")");
                         break;

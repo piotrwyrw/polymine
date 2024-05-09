@@ -15,17 +15,13 @@ _Bool analyze_compound(struct semantics *, struct astnode *);
 
 _Bool analyze_any(struct semantics *, struct astnode *);
 
-_Bool analyze_type(struct astdtype *);
-
 _Bool analyze_if(struct semantics *, struct astnode *);
 
 _Bool analyze_variable_declaration(struct semantics *, struct astnode *);
 
-_Bool analyze_linked_function(struct semantics *, struct astnode *);
+_Bool analyze_present_function(struct semantics *, struct astnode *);
 
 _Bool analyze_function_definition(struct semantics *, struct astnode *);
-
-_Bool analyze_capture_group(struct semantics *, struct astnode *);
 
 _Bool analyze_resolve(struct semantics *, struct astnode *);
 

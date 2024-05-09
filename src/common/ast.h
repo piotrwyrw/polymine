@@ -77,11 +77,6 @@ enum symbol_type {
 
 char *symbol_type_humanstr(enum symbol_type);
 
-enum gen_type {
-        GENERATED_REGULAR,
-        GENERATED_LAMBDA
-};
-
 struct astdtype;
 
 struct astnode {
@@ -157,9 +152,7 @@ struct astnode {
                         char *identifier;
                         struct astnode *params; // This is a block too!
                         struct astdtype *type;
-                        struct astnode *capture; // And so is this!
                         struct astnode *block;
-                        _Bool nested;
                         _Bool conditionless_resolve; // Managed by Semantic Analysis
                         struct astnode *attributes; // Compound
                         struct astnode *generated; // generated_function
@@ -198,7 +191,6 @@ struct astnode {
                 struct {
                         struct astnode *definition;
                         size_t number;
-                        enum gen_type type;
                         char *generated_id;
                 } generated_function;
 
@@ -239,8 +231,7 @@ enum astdtype_type : uint8_t {
         ASTDTYPE_VOID = 0,
         ASTDTYPE_POINTER,
         ASTDTYPE_BUILTIN,
-        ASTDTYPE_CUSTOM,
-        ASTDTYPE_LAMBDA
+        ASTDTYPE_CUSTOM
 };
 
 /**
@@ -261,11 +252,6 @@ struct astdtype {
                 struct {
                         char *name;
                 } custom;
-
-                struct {
-                        struct astnode *paramTypes;
-                        struct astdtype *returnType;
-                } lambda;
         };
 };
 
@@ -282,8 +268,6 @@ struct astdtype *astdtype_void();
 struct astdtype *astdtype_string_type();
 
 struct astdtype *astdtype_custom(char *);
-
-struct astdtype *astdtype_lambda(struct astnode *, struct astdtype *);
 
 char *astdtype_string(struct astdtype *);
 
@@ -326,7 +310,7 @@ struct astnode *astnode_variable(size_t, struct astnode *, char *);
 
 struct astnode *astnode_assignment(size_t, struct astnode *, char *, struct astnode *);
 
-struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *, struct astnode *, struct astnode *);
+struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *, struct astnode *);
 
 struct astnode *astnode_function_call(size_t, struct astnode *, char *, struct astnode *);
 
@@ -346,7 +330,7 @@ struct astnode *astnode_symbol(struct astnode *, enum symbol_type, char *, struc
 
 struct astnode *astnode_copy_symbol(struct astnode *);
 
-struct astnode *astnode_generated_function(struct astnode *, size_t, enum gen_type);
+struct astnode *astnode_generated_function(struct astnode *, size_t);
 
 struct astnode *astnode_include(size_t, struct astnode *, char *);
 

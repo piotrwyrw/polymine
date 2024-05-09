@@ -52,12 +52,6 @@ void astdtype_free(struct astdtype *adt)
                 case ASTDTYPE_CUSTOM:
                         free(adt->custom.name);
                         break;
-                case ASTDTYPE_LAMBDA:
-                        // Just free the compound and NOT what it contains
-                        freeDataTypes = false;
-                        astnode_free(adt->lambda.paramTypes);
-                        freeDataTypes = true;
-                        break;
                 default:
                         break;
         }
@@ -103,14 +97,6 @@ struct astdtype *astdtype_custom(char *name)
         struct astdtype *wrapper = astdtype_generic(ASTDTYPE_CUSTOM);
         wrapper->custom.name = strdup(name);
         return wrapper;
-}
-
-struct astdtype *astdtype_lambda(struct astnode *paramTypes, struct astdtype *returnType)
-{
-        struct astdtype *type = astdtype_generic(ASTDTYPE_LAMBDA);
-        type->lambda.paramTypes = paramTypes;
-        type->lambda.returnType = returnType;
-        return type;
 }
 
 #define MAX_TYPENAME_LENGTH 200
@@ -174,30 +160,6 @@ char *astdtype_string(struct astdtype *type)
                 free(s);
 
                 strcat(typename, ")");
-                return typename;
-        }
-
-        if (type->type == ASTDTYPE_LAMBDA) {
-                strcat(typename, "lambda(");
-
-                struct astnode *paramTypes = type->lambda.paramTypes;
-
-                char *s;
-
-                for (size_t i = 0; i < paramTypes->node_compound.count; i++) {
-                        strcat(typename, (s = astdtype_string(paramTypes->node_compound.array[i]->data_type.adt)));
-                        free(s);
-
-                        if (i + 1 < paramTypes->node_compound.count) {
-                                strcat(typename, ", ");
-                        }
-                }
-
-                strcat(typename, ") -> ");
-
-                strcat(typename, (s = astdtype_string(type->lambda.returnType)));
-                free(s);
-
                 return typename;
         }
 
@@ -373,7 +335,6 @@ void astnode_free(struct astnode *node)
                                 free(node->function_def.identifier);
                         astnode_free(node->function_def.params);
                         astnode_free(node->function_def.block);
-                        astnode_free(node->function_def.capture);
                         astnode_free(node->function_def.attributes);
                         break;
                 case NODE_FUNCTION_CALL:
@@ -575,18 +536,16 @@ struct astnode *astnode_assignment(size_t line, struct astnode *block, char *ide
         return node;
 }
 
-struct astnode *astnode_function_definition(size_t line, struct astnode *superblock, char *identifier, struct astnode *parameters, struct astdtype *type, struct astnode *capture, struct astnode *block, struct astnode *attrs)
+struct astnode *astnode_function_definition(size_t line, struct astnode *superblock, char *identifier, struct astnode *parameters, struct astdtype *type, struct astnode *block, struct astnode *attrs)
 {
         struct astnode *node = astnode_generic(NODE_FUNCTION_DEFINITION, line, superblock);
         node->function_def.identifier = identifier ? strdup(identifier) : NULL;
         node->function_def.params = parameters;
         node->function_def.type = type;
         node->function_def.block = block;
-        node->function_def.capture = capture;
         node->function_def.conditionless_resolve = false;
         node->function_def.attributes = attrs;
         node->function_def.generated = NULL;
-        node->function_def.nested = false;
         node->function_def.param_count = parameters->node_compound.count;
         return node;
 }
@@ -653,30 +612,20 @@ struct astnode *astnode_copy_symbol(struct astnode *sym)
                               sym->symbol.node);
 }
 
-struct astnode *astnode_generated_function(struct astnode *definition, size_t number, enum gen_type type)
+struct astnode *astnode_generated_function(struct astnode *definition, size_t number)
 {
         struct astnode *node = astnode_generic(NODE_GENERATED_FUNCTION, 0, NULL);
         node->generated_function.definition = definition;
-        node->generated_function.type = type;
         node->generated_function.number = number;
         node->generated_function.generated_id = calloc(100, sizeof(char));
 
-        if (type == GENERATED_LAMBDA) {
-                char *coreId = definition->function_def.identifier;
-                if (!coreId && definition->holder && definition->holder->type == NODE_VARIABLE_DECL)
-                        coreId = definition->holder->declaration.identifier;
+        char *id = definition->function_def.identifier;
 
-                sprintf(node->generated_function.generated_id, "_fn_lambda%ld_%s", number,
-                        coreId ? coreId : "anon");
+        if (strcmp(definition->function_def.identifier, "main") == 0) {
+                id = "polymine_bootstrap";
+                sprintf(node->generated_function.generated_id, "_fn_%s", id);
         } else {
-                char *id = definition->function_def.identifier;
-
-                if (strcmp(definition->function_def.identifier, "main") == 0) {
-                        id = "polymine_bootstrap";
-                        sprintf(node->generated_function.generated_id, "_fn_%s", id);
-                } else {
-                        sprintf(node->generated_function.generated_id, "_fn_%s%ld", id, number);
-                }
+                sprintf(node->generated_function.generated_id, "_fn_%s%ld", id, number);
         }
 
         return node;

@@ -60,9 +60,7 @@ struct astdtype *required_type_integer(struct semantics *, int);
 
 struct astdtype *semantics_new_type(struct semantics *, struct astdtype *);
 
-struct astdtype *function_def_type(struct astnode *);
-
-void semantics_new_function(struct semantics *, struct astnode *, enum gen_type);
+void semantics_new_function(struct semantics *, struct astnode *);
 
 void semantics_new_include(struct semantics *, char *);
 
