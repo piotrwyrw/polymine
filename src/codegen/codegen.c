@@ -222,6 +222,7 @@ void gen_function_definition(_codegen, struct astnode *_fdef)
 void gen_variable_declaration(_codegen, struct astnode *decl)
 {
         gen_type(gen, decl->declaration.type, decl->declaration.generated_id);
+        EMIT(" %s", decl->declaration.generated_id);
         if (decl->declaration.value) {
                 EMIT(" = ");
                 gen_expression(gen, decl->declaration.value);
@@ -276,11 +277,16 @@ void gen_expression(_codegen, struct astnode *expr)
 
                         EMIT("%s(", id);
 
-                        gen->param_count = expr->function_call.values->node_compound.count;
+                        size_t oldParamCount = gen->param_count;
+                        size_t oldParamNo = gen->param_no;
 
+                        gen->param_count = expr->function_call.values->node_compound.count;
                         gen->param_no = 0;
 
                         astnode_compound_foreach(expr->function_call.values, gen, (void *) gen_call_params);
+
+                        gen->param_count = oldParamCount;
+                        gen->param_no = oldParamNo;
 
                         EMIT(")");
                         break;

@@ -171,17 +171,23 @@ static _Bool types_compatible_advanced(struct astdtype *destination, struct astd
         if (destination->type == ASTDTYPE_CUSTOM && strcmp(destination->custom.name, source->custom.name) == 0)
                 return true;
 
+#define XOR(a, b) (((a) && !(b)) || (!(a) && (b)))
+
         if (destination->type == ASTDTYPE_BUILTIN) {
                 if (destination->builtin.datatype != source->builtin.datatype && pointer)
                         return false;
 
-                if ((source->builtin.datatype == BUILTIN_STRING && destination->builtin.datatype != BUILTIN_STRING) ||
-                    (source->builtin.datatype != BUILTIN_STRING && destination->builtin.datatype == BUILTIN_STRING))
+                if (XOR(source->builtin.datatype == BUILTIN_STRING, destination->builtin.datatype == BUILTIN_STRING))
+                        return false;
+
+                if (XOR(source->builtin.datatype == BUILTIN_DOUBLE, destination->builtin.datatype == BUILTIN_DOUBLE))
                         return false;
 
                 if ((quantify_type_size(destination) >= quantify_type_size(source)))
                         return true;
         }
+
+#undef XOR
 
         return false;
 }

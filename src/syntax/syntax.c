@@ -418,8 +418,40 @@ struct astnode *parse_function_definition(struct parser *p)
                 return NULL;
         }
 
+        struct astnode *block;
+        struct astnode *fdef;
+
+        // Expression-valued functions (just syntax sugar, really)
+        if (p->current.type == LX_EQUALS) {
+                parser_advance(p);
+
+                block = astnode_empty_block(p->line, p->block);
+
+                struct astnode *oldBlock = p->block;
+
+                p->block = block;
+
+                struct astnode *expr = parse_expr(p);
+
+                if (!expr) {
+                        free(id);
+                        astnode_free(block);
+                        astnode_free(attrs);
+                        astnode_free(params);
+                        return NULL;
+                }
+
+                struct astnode *resolve = astnode_resolve(p->line, p->block, expr);
+
+                p->block = oldBlock;
+
+                astnode_push_compound(block->block.nodes, resolve);
+
+                goto finalize;
+        }
+
         if (p->current.type != LX_LBRACE) {
-                printf("Expected '{' after function parameter block. Got %s (\"%s\") on line %ld.\n",
+                printf("Expected '{' after function parameter block pr '=' for an expression-valued function. Got %s (\"%s\") on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 free(id);
                 astnode_free(attrs);
@@ -427,7 +459,7 @@ struct astnode *parse_function_definition(struct parser *p)
                 return NULL;
         }
 
-        struct astnode *block = parse_block(p);
+        block = parse_block(p);
 
         if (!block) {
                 free(id);
@@ -436,8 +468,9 @@ struct astnode *parse_function_definition(struct parser *p)
                 return NULL;
         }
 
-        struct astnode *fdef = astnode_function_definition(line, p->block, id, params, type, block, attrs);
+        finalize:
 
+        fdef = astnode_function_definition(line, p->block, id, params, type, block, attrs);
         fdef->function_def.params->holder = fdef;
         fdef->function_def.block->holder = fdef;
 
@@ -449,7 +482,7 @@ struct astnode *parse_function_definition(struct parser *p)
 struct astnode *parse_present(struct parser *p)
 {
         if (p->current.type != LX_IDEN || strcmp(p->current.value, "present") != 0) {
-                printf("Expected 'linked' at the beginning of a linked function definition. Got %s (\"%s\") rror on line %ld.\n",
+                printf("Expected 'linked' at the beginning of a linked function definition. Got %s (\"%s\") error on line %ld.\n",
                        lxtype_string(p->current.type), p->current.value, p->line);
                 return NULL;
         }
@@ -507,16 +540,9 @@ struct astnode *parse_resolve(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *expr;
-
-        if (p->current.type == LX_IDEN && (strcmp(p->current.value, "nothing") == 0)) {
-                expr = astnode_void_placeholder(p->line, p->block);
-                parser_advance(p);
-        } else {
-                expr = parse_expr(p);
-                if (!expr)
-                        return NULL;
-        }
+        struct astnode *expr = parse_expr(p);
+        if (!expr)
+                return NULL;
 
         struct astnode *resv = astnode_resolve(line, p->block, expr);
         resv->resolve.value->holder = resv;
@@ -840,13 +866,18 @@ struct astnode *parse_atom(struct parser *p)
                 return astnode_integer_literal(p->line, p->block, 0);
         }
 
+        if (p->current.type == LX_IDEN && (strcmp(p->current.value, "nothing") == 0)) {
+                parser_advance(p);
+                return astnode_void_placeholder(p->line, p->block);
+        }
+
         if (p->current.type == LX_IDEN && strcmp(p->current.value, "ptr_to") == 0) {
                 size_t line = p->line;
 
                 parser_advance(p);
 
-                if (p->current.type != LX_RGREATER) {
-                        printf("Expected '<' after 'ptr_to' keyword. Got %s (\"%s\") on line %ld.\n",
+                if (p->current.type != LX_LSQUARE) {
+                        printf("Expected '[' after 'ptr_to' keyword. Got %s (\"%s\") on line %ld.\n",
                                lxtype_string(p->current.type), p->current.value, p->line);
                         return NULL;
                 }
@@ -858,8 +889,8 @@ struct astnode *parse_atom(struct parser *p)
                 if (!to)
                         return NULL;
 
-                if (p->current.type != LX_LGREATER) {
-                        printf("Expected '>' after pointer expression. Got %s (\"%s\") on line %ld.\n",
+                if (p->current.type != LX_RSQUARE) {
+                        printf("Expected ']' after pointer expression. Got %s (\"%s\") on line %ld.\n",
                                lxtype_string(p->current.type), p->current.value, p->line);
                         return NULL;
                 }
