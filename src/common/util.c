@@ -125,7 +125,8 @@ void ast_print(struct astnode *_node, size_t level)
 
                         s = astdtype_string(node->declaration.type);
 
-                        printf(" '%s' (%s) [%s]", node->declaration.identifier, node->declaration.generated_id ?: "Not generated", s);
+                        printf(" '%s' (%s) [%s]", node->declaration.identifier,
+                               node->declaration.generated_id ?: "Not generated", s);
 
                         free(s);
 
@@ -143,18 +144,25 @@ void ast_print(struct astnode *_node, size_t level)
                         ast_print(node->pointer.target, level + 1);
                         break;
 
+                case NODE_DEREFERENCE:
+                INDENTED("Dereference:\n");
+                        ast_print(node->dereference.target, level + 1);
+                        break;
+
                 case NODE_VARIABLE_USE:
-                INDENTED("Variable Use '%s'\n", node->variable.identifier);
+                INDENTED("Variable Use \"%s\" (%s)\n", node->variable.identifier,
+                         node->variable.var->declaration.generated_id);
                         break;
 
                 case NODE_VARIABLE_ASSIGNMENT:
-                INDENTED("Variable Assignment '%s':\n", node->assignment.identifier);
+                INDENTED("Assignment:\n");
+                        ast_print(node->assignment.path, level + 1);
                         ast_print(node->assignment.value, level + 1);
                         break;
 
                 case NODE_FUNCTION_DEFINITION:
                         s = astdtype_string(node->function_def.type);
-                        INDENTED("Function Definition '%s' (%s) of %s:\n", FUNCTION_ID(node->function_def.identifier),
+                        INDENTED("Function Definition \"%s\" (%s) of %s:\n", FUNCTION_ID(node->function_def.identifier),
                                  (node->function_def.generated
                                   ? node->function_def.generated->generated_function.generated_id : "Not yet analyzed"),
                                  s);
@@ -165,7 +173,10 @@ void ast_print(struct astnode *_node, size_t level)
                         break;
 
                 case NODE_FUNCTION_CALL:
-                INDENTED("Function Call '%s':\n", node->function_call.identifier);
+                INDENTED("Function Call \"%s\" (%s):\n", node->function_call.identifier,
+                         node->function_call.definition->type == NODE_FUNCTION_DEFINITION
+                         ? node->function_call.definition->function_def.generated->generated_function.generated_id
+                         : node->function_call.definition->present_function.identifier);
                         ast_print(node->function_call.values, level + 1);
                         break;
 
@@ -210,6 +221,13 @@ void ast_print(struct astnode *_node, size_t level)
                 INDENTED("Complex Type \"%s\" (%s):\n", node->type_definition.identifier,
                          node->type_definition.generated_identifier);
                         ast_print(node->type_definition.fields, level + 1);
+                        break;
+
+                case NODE_PATH:
+                INDENTED("Path Node:\n");
+                        ast_print(node->path.expr, level + 1);
+                        if (node->path.next)
+                                ast_print(node->path.next, level + 1);
                         break;
 
                 default:

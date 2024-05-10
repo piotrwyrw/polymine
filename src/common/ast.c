@@ -204,6 +204,7 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_UNDEFINED)
                 AUTO(NODE_COMPLEX_TYPE)
                 AUTO(NODE_PRESENT_FUNCTION)
+                AUTO(NODE_PATH)
 #undef AUTO
                 default:
                         return "Unknown Node";
@@ -330,11 +331,14 @@ void astnode_free(struct astnode *node)
                 case NODE_POINTER:
                         astnode_free(node->pointer.target);
                         break;
+                case NODE_DEREFERENCE:
+                        astnode_free(node->dereference.target);
+                        break;
                 case NODE_VARIABLE_USE:
                         free(node->variable.identifier);
                         break;
                 case NODE_VARIABLE_ASSIGNMENT:
-                        free(node->assignment.identifier);
+                        astnode_free(node->assignment.path);
                         astnode_free(node->assignment.value);
                         break;
                 case NODE_FUNCTION_DEFINITION:
@@ -380,6 +384,10 @@ void astnode_free(struct astnode *node)
                         free(node->type_definition.generated_identifier);
                         astnode_free(node->type_definition.fields);
                         break;
+                case NODE_PATH:
+                        astnode_free(node->path.expr);
+                        if (node->path.next)
+                                astnode_free(node->path.next);
                 default:
                         break;
         }
@@ -534,6 +542,13 @@ struct astnode *astnode_pointer(size_t line, struct astnode *block, struct astno
         return node;
 }
 
+struct astnode *astnode_dereference(size_t line, struct astnode *block, struct astnode *to)
+{
+        struct astnode *node = astnode_generic(NODE_DEREFERENCE, line, block);
+        node->dereference.target = to;
+        return node;
+}
+
 struct astnode *astnode_variable(size_t line, struct astnode *block, char *str)
 {
         struct astnode *node = astnode_generic(NODE_VARIABLE_USE, line, block);
@@ -542,11 +557,11 @@ struct astnode *astnode_variable(size_t line, struct astnode *block, char *str)
         return node;
 }
 
-struct astnode *astnode_assignment(size_t line, struct astnode *block, char *identifier, struct astnode *value)
+struct astnode *astnode_assignment(size_t line, struct astnode *block, struct astnode *path, struct astnode *value)
 {
         struct astnode *node = astnode_generic(NODE_VARIABLE_ASSIGNMENT, line, block);
         node->assignment.value = value;
-        node->assignment.identifier = strdup(identifier);
+        node->assignment.path = path;
         node->assignment.declaration = NULL;
         return node;
 }
@@ -625,6 +640,15 @@ struct astnode *astnode_if(size_t line, struct astnode *super, struct astnode *e
         node->if_statement.block = if_block;
         node->if_statement.expr = expr;
         node->if_statement.next_branch = next;
+        return node;
+}
+
+struct astnode *astnode_path(size_t line, struct astnode *super, struct astnode *expr)
+{
+        struct astnode *node = astnode_generic(NODE_PATH, line, super);
+        node->path.expr = expr;
+        node->path.target = NULL;
+        node->path.next = NULL;
         return node;
 }
 

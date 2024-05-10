@@ -47,9 +47,6 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
                 return parse_string_literal(p);
 
         if (p->current.type == LX_IDEN) {
-                if (p->next.type == LX_EQUALS)
-                        return parse_variable_assignment(p);
-
                 if (strcmp(p->current.value, "resolve") == 0)
                         return parse_resolve(p);
 
@@ -70,12 +67,32 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
 
                 if (strcmp(p->current.value, "type") == 0)
                         return parse_type_definition(p);
+
+                if (strcmp(p->current.value, "fn") == 0)
+                        return parse_function_definition(p);
         }
 
         if (p->current.type == LX_LBRACE)
                 return parse_block(p);
 
         struct astnode *expr = parse_expr(p);
+
+        if (!expr)
+                return NULL;
+
+        // Assignment
+        if (expr->type == NODE_PATH && p->current.type == LX_EQUALS) {
+                parser_advance(p);
+
+                struct astnode *value = parse_expr(p);
+
+                if (!value) {
+                        astnode_free(expr);
+                        return NULL;
+                }
+
+                return astnode_assignment(expr->line, p->block, expr, value);
+        }
 
         return expr;
 
@@ -271,45 +288,6 @@ struct astnode *parse_variable_declaration(struct parser *p)
 
         free(id);
         return decl;
-}
-
-struct astnode *parse_variable_assignment(struct parser *p)
-{
-        size_t line = p->line;
-
-        if (p->current.type != LX_IDEN) {
-                printf("Expectesd identifier on the left side of a variable assignment. Got %s (\"%s\") on line %ld.\n",
-                       lxtype_string(p->current.type), p->current.value, line);
-                return NULL;
-        }
-
-        char *id = strdup(p->current.value);
-
-        parser_advance(p);
-
-        if (p->current.type != LX_EQUALS) {
-                printf("Expected '=' after variable identifier. Got %s (\"%s\") on line %ld.\n",
-                       lxtype_string(p->current.type), p->current.value, line);
-                free(id);
-                return NULL;
-        }
-
-        parser_advance(p);
-
-        struct astnode *val = parse_expr(p);
-
-        if (!val) {
-                free(id);
-                return NULL;
-        }
-
-        struct astnode *assignment = astnode_assignment(line, p->block, id, val);
-
-        assignment->assignment.value->holder = assignment;
-
-        free(id);
-
-        return assignment;
 }
 
 struct astnode *parse_parameters(struct parser *p)
@@ -835,7 +813,7 @@ struct astnode *parse_additive_expr(struct parser *p)
 struct astnode *parse_multiplicative_expr(struct parser *p)
 {
         size_t line = p->line;
-        struct astnode *left = parse_atom(p);
+        struct astnode *left = parse_atom_front(p);
 
         if (!left)
                 return NULL;
@@ -860,6 +838,37 @@ struct astnode *parse_multiplicative_expr(struct parser *p)
         return left;
 }
 
+struct astnode *parse_atom_front(struct parser *p)
+{
+        struct astnode *root = parse_atom(p);
+
+        if (!root)
+                return NULL;
+
+        if (p->current.type != LX_DOT)
+                return root;
+
+        root = astnode_path(p->line, p->block, root);
+        struct astnode *tip = root;
+
+        while (p->current.type == LX_DOT) {
+                parser_advance(p);
+
+                struct astnode *nextExpr = parse_atom(p);
+
+                if (!nextExpr) {
+                        astnode_free(root);
+                        return NULL;
+                }
+
+                tip->path.next = astnode_path(p->line, p->block, nextExpr);
+
+                tip = tip->path.next;
+        }
+
+        return root;
+}
+
 struct astnode *parse_atom(struct parser *p)
 {
         if (p->current.type == LX_LPAREN) {
@@ -880,10 +889,6 @@ struct astnode *parse_atom(struct parser *p)
 
                 return expr;
         }
-
-        if (p->current.type == LX_IDEN &&
-            (strcmp(p->current.value, "fn") == 0))
-                return parse_function_definition(p);
 
         if (p->current.type == LX_STRING)
                 return parse_string_literal(p);
@@ -909,16 +914,24 @@ struct astnode *parse_atom(struct parser *p)
                 return astnode_void_placeholder(p->line, p->block);
         }
 
-        if (p->current.type == LX_IDEN && strcmp(p->current.value, "ptr_to") == 0) {
+        if (p->current.type == LX_IDEN &&
+            (strcmp(p->current.value, "ptr_to") == 0 || strcmp(p->current.value, "deref") == 0)) {
+                _Bool pointer = (strcmp(p->current.value, "ptr_to") == 0);
+
+                char *keyword = strdup(p->current.value);
+
                 size_t line = p->line;
 
                 parser_advance(p);
 
                 if (p->current.type != LX_LSQUARE) {
-                        printf("Expected '[' after 'ptr_to' keyword. Got %s (\"%s\") on line %ld.\n",
-                               lxtype_string(p->current.type), p->current.value, p->line);
+                        printf("Expected '[' after '%s' keyword. Got %s (\"%s\") on line %ld.\n",
+                               keyword, lxtype_string(p->current.type), p->current.value, p->line);
+                        free(keyword);
                         return NULL;
                 }
+
+                free(keyword);
 
                 parser_advance(p);
 
@@ -928,14 +941,21 @@ struct astnode *parse_atom(struct parser *p)
                         return NULL;
 
                 if (p->current.type != LX_RSQUARE) {
-                        printf("Expected ']' after pointer expression. Got %s (\"%s\") on line %ld.\n",
+                        printf("Expected ']' after expression. Got %s (\"%s\") on line %ld.\n",
                                lxtype_string(p->current.type), p->current.value, p->line);
                         return NULL;
                 }
 
                 parser_advance(p);
 
-                return astnode_pointer(line, p->block, to);
+                struct astnode *expr;
+
+                if (pointer)
+                        expr = astnode_pointer(line, p->block, to);
+                else
+                        expr = astnode_dereference(line, p->block, to);
+
+                return expr;
         }
 
         if (p->current.type == LX_IDEN) {

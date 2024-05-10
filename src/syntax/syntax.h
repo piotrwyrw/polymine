@@ -19,8 +19,6 @@ struct astnode *parse_type_definition(struct parser *);
 
 struct astnode *parse_variable_declaration(struct parser *);
 
-struct astnode *parse_variable_assignment(struct parser *);
-
 struct astnode *parse_parameters(struct parser *);
 
 struct astnode *parse_function_definition(struct parser *);
@@ -42,6 +40,8 @@ struct astnode *parse_expr(struct parser *);
 struct astnode *parse_additive_expr(struct parser *);
 
 struct astnode *parse_multiplicative_expr(struct parser *);
+
+struct astnode *parse_atom_front(struct parser *);
 
 struct astnode *parse_atom(struct parser *);
 

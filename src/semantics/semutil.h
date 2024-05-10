@@ -48,6 +48,8 @@ struct astnode *find_enclosing_function(struct astnode *);
 
 struct astnode *find_uncertain_reachability_structures(struct astnode *);
 
+struct astnode *find_in_type(struct astnode *complex, char *id);
+
 void put_symbol(struct astnode *, struct astnode *);
 
 _Bool is_uppermost_block(struct astnode *);

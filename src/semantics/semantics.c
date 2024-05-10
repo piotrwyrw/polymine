@@ -81,7 +81,8 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                 case NODE_VARIABLE_USE:
                 case NODE_FUNCTION_CALL:
                 case NODE_POINTER:
-                        return analyze_expression(sem, node, NULL) != NULL;
+                case NODE_DEREFERENCE:
+                        return analyze_expression(sem, node, NULL, NULL) != NULL;
                 case NODE_VARIABLE_ASSIGNMENT:
                         return analyze_assignment(sem, node);
                 case NODE_RESOLVE:
@@ -94,6 +95,8 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                         return analyze_present_function(sem, node);
                 case NODE_COMPLEX_TYPE:
                         return analyze_complex_type(sem, node);
+                case NODE_PATH:
+                        return analyze_path(sem, node) != NULL;
                 default:
                         printf("Unknown node type passed to analyze_any(..): %s\n", nodetype_string(node->type));
                         return false;
@@ -105,7 +108,7 @@ _Bool analyze_if(struct semantics *sem, struct astnode *_if)
         if (!_if->if_statement.expr)
                 goto skip_expression;
 
-        struct astdtype *type = analyze_expression(sem, _if->if_statement.expr, NULL);
+        struct astdtype *type = analyze_expression(sem, _if->if_statement.expr, NULL, NULL);
 
         if (!type) {
                 printf("Type evaluation failed for if condition on line %ld.\n", _if->line);
@@ -131,8 +134,11 @@ _Bool analyze_if(struct semantics *sem, struct astnode *_if)
 
 _Bool analyze_type(struct semantics *sem, struct astdtype *type, struct astnode *consumer)
 {
-        if (type->type != ASTDTYPE_COMPLEX)
+        if (type->type != ASTDTYPE_COMPLEX && type->type != ASTDTYPE_POINTER)
                 return true;
+
+        if (type->type == ASTDTYPE_POINTER)
+                return analyze_type(sem, type->pointer.to, consumer);
 
         struct astnode *sym = find_symbol(type->complex.name, consumer->super);
 
@@ -153,7 +159,8 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
                 return false;
 
         if (decl->declaration.type && !analyze_type(sem, decl->declaration.type, decl)) {
-                printf("The type of variable \"%s\" is invalid. Error on line %ld.\n", decl->declaration.identifier, decl->line);
+                printf("The type of variable \"%s\" is invalid. Error on line %ld.\n", decl->declaration.identifier,
+                       decl->line);
                 return false;
         }
 
@@ -174,7 +181,7 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
 
         _Bool compile_time;
 
-        struct astdtype *exprType = analyze_expression(sem, UNWRAP(decl->declaration.value), &compile_time);
+        struct astdtype *exprType = analyze_expression(sem, UNWRAP(decl->declaration.value), &compile_time, NULL);
 
         if (!exprType) {
                 printf("Type evaluation failed for variable \"%s\" on line %ld.\n", decl->declaration.identifier,
@@ -226,24 +233,24 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
 
 _Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
 {
-        struct astnode *sym;
+        struct astnode *target = analyze_path(sem, assignment->assignment.path);
 
-        if (!(sym = find_symbol(assignment->assignment.identifier, assignment->super))) {
-                printf("Attempted to assign undefined variable \"%s\" on line %ld.\n",
-                       assignment->assignment.identifier, assignment->line);
+        if (!target) {
+                printf("Assignment path is invalid. Error on line %ld.\n", assignment->line);
                 return false;
         }
 
-        if (sym->symbol.symtype != SYMBOL_VARIABLE) {
-                printf("The symbol \"%s\" is a %s. Attempted assignment in variable context on line %ld.\n",
-                       assignment->assignment.identifier,
-                       symbol_type_humanstr(sym->symbol.symtype), assignment->line);
+        if (target->type != NODE_VARIABLE_USE) {
+                printf("Attempted to assign %s as variable. Error on line %ld.\n", nodetype_string(assignment->type),
+                       assignment->line);
                 return false;
         }
 
-        assignment->assignment.declaration = sym->symbol.node;
+        target = target->variable.var;
 
-        struct astdtype *exprType = analyze_expression(sem, assignment->assignment.value, NULL);
+        assignment->assignment.declaration = target;
+
+        struct astdtype *exprType = analyze_expression(sem, assignment->assignment.value, NULL, NULL);
 
         if (!exprType) {
                 printf("Type validation of assignment expression failed on line %ld.\n", assignment->line);
@@ -255,14 +262,14 @@ _Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
                 return false;
         }
 
-        struct astdtype *varType = sym->symbol.type;
+        struct astdtype *varType = target->declaration.type;
 
         if (!types_compatible(varType, exprType)) {
                 char *exprTypeStr = astdtype_string(exprType);
                 char *varTypeStr = astdtype_string(varType);
 
                 printf("Cannot assign \"%s\" (%s) to an expression of type %s. Type compatibility error on line %ld.\n",
-                       assignment->assignment.identifier, varTypeStr, exprTypeStr, assignment->line);
+                       target->declaration.identifier, varTypeStr, exprTypeStr, assignment->line);
 
                 free(exprTypeStr);
                 free(varTypeStr);
@@ -328,6 +335,12 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         if (symbol_conflict(fdef->function_def.identifier, fdef))
                 return false;
 
+        if (!analyze_type(sem, fdef->function_def.type, fdef)) {
+                printf("Type analysis failed for return type of \"%s\". Error on line %ld.\n",
+                       fdef->function_def.identifier, fdef->line);
+                return false;
+        }
+
         if (fdef->super && fdef->super->holder && fdef->super->holder->type != NODE_PROGRAM) {
                 printf("Functions must be declared in the global scope. Error on line %ld.\n", fdef->line);
                 return false;
@@ -381,14 +394,20 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
 
 void *analyze_complex_type_field(struct semantics *sem, struct astnode *field)
 {
+        if (!analyze_type(sem, field->declaration.type, field))
+                return field;
+
         declaration_generate_name(field, sem->symbol_counter++);
         return NULL;
 }
 
 _Bool analyze_complex_type(struct semantics *sem, struct astnode *def)
 {
-        if (astnode_compound_foreach(def->type_definition.fields, sem, (void *) analyze_complex_type_field))
+        if (astnode_compound_foreach(def->type_definition.fields, sem, (void *) analyze_complex_type_field)) {
+                printf("Type analysis failed for fields of type \"%s\". Error on line %ld.\n",
+                       def->type_definition.identifier, def->line);
                 return false;
+        }
 
         complex_type_generate_name(def, sem->symbol_counter++);
 
@@ -404,7 +423,7 @@ _Bool analyze_complex_type(struct semantics *sem, struct astnode *def)
 
 _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
 {
-        struct astdtype *type = analyze_expression(sem, res->resolve.value, NULL);
+        struct astdtype *type = analyze_expression(sem, res->resolve.value, NULL, NULL);
         struct astnode *function;
 
         if (!type)
@@ -450,7 +469,9 @@ _Bool analyze_include(struct semantics *sem, struct astnode *include)
         return true;
 }
 
-struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr, _Bool *compile_time)
+static struct astdtype *analyze_path_as_expression(struct semantics *, struct astnode *);
+
+struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr, _Bool *compile_time, struct astnode *def)
 {
         // The default state is true. This might change during the recursive call chain
         if (compile_time)
@@ -458,26 +479,29 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr,
 
         switch (expr->type) {
                 case NODE_BINARY_OP:
-                        return analyze_binary_expression(sem, expr, compile_time);
+                        return analyze_binary_expression(sem, expr, compile_time, def);
                 case NODE_VARIABLE_USE:
-                        return analyze_variable_use(sem, expr);
+                        return analyze_variable_use(sem, expr, def);
                 case NODE_INTEGER_LITERAL:
                 case NODE_FLOAT_LITERAL:
                 case NODE_STRING_LITERAL:
                 case NODE_FUNCTION_CALL:
                 case NODE_POINTER:
-                        return analyze_atom(sem, expr, compile_time);
+                case NODE_DEREFERENCE:
+                        return analyze_atom(sem, expr, compile_time, def);
                 case NODE_VOID_PLACEHOLDER:
                         return sem->_void;
+                case NODE_PATH:
+                        return analyze_path_as_expression(sem, expr);
                 default:
                         return NULL;
         }
 }
 
-struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode *bin, _Bool *compile_time)
+struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode *bin, _Bool *compile_time, struct astnode *def)
 {
-        struct astdtype *right = analyze_expression(sem, bin->binary.left, compile_time);
-        struct astdtype *left = analyze_expression(sem, bin->binary.right, compile_time);
+        struct astdtype *right = analyze_expression(sem, bin->binary.left, compile_time, def);
+        struct astdtype *left = analyze_expression(sem, bin->binary.right, compile_time, def);
 
         if (!left || !right)
                 return NULL;
@@ -504,9 +528,107 @@ struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode
         return type;
 }
 
-struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use)
+static struct astdtype *analyze_path_as_expression(struct semantics *sem, struct astnode *path)
+{
+        struct astnode *res = analyze_path(sem, path);
+
+        if (!res)
+                return NULL;
+
+        if (res->type == NODE_VARIABLE_USE)
+                return res->variable.var->declaration.type;
+
+        if (res->type == NODE_FUNCTION_CALL)
+                return res->function_call.definition->function_def.type;
+
+        printf("Could not extract expression type from \"%s\". Error on line %ld.\n", nodetype_string(res->type),
+               path->line);
+
+        return NULL;
+}
+
+struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
+{
+        struct astnode *pathSegment = path;
+        struct astdtype *lastType;
+        struct astnode *lastExpr = NULL;
+
+        _Bool first = true;
+
+        while (pathSegment) {
+                struct astnode *expr = pathSegment->path.expr;
+
+                // We analyze the first expression as usual
+                if (first) {
+                        lastExpr = expr;
+                        lastType = analyze_expression(sem, expr, NULL, NULL);
+                        if (!lastType) {
+                                printf("Semantic analysis failed for path on line %ld.\n", path->line);
+                                return NULL;
+                        }
+                        first = false;
+                        pathSegment->path.target = lastExpr;
+                        pathSegment = pathSegment->path.next;
+                        continue;
+                }
+
+                // The remaining expressions need to be found within the return lastType of the last segment. Thus, we
+                // first need to figure out an identifier for the requested field.
+
+                if (lastType->type != ASTDTYPE_COMPLEX) {
+                        printf("A builtin lastType may only constitute the terminal pathSegment of a path. Error on line %ld.\n",
+                               path->line);
+                        return NULL;
+                }
+
+                char *id;
+
+                if (expr->type == NODE_VARIABLE_USE)
+                        id = expr->variable.identifier;
+                else if (expr->type == NODE_FUNCTION_CALL)
+                        id = expr->function_call.identifier;
+                else {
+                        printf("Unexpected pathSegment found when analyzing path expression (%s). Error on line %ld.\n",
+                               nodetype_string(expr->type), expr->line);
+                        return NULL;
+                }
+
+                struct astnode *def = find_in_type(lastType->complex.definition, id);
+
+                lastExpr = expr;
+
+                if (!def) {
+                        printf("The complex type \"%s\" does not contain an element named \"%s\". Invalid path. Error on line %ld.\n",
+                               lastType->complex.name, id, expr->line);
+                        return NULL;
+                }
+
+                lastType = analyze_expression(sem, expr, NULL, def);
+
+                if (!lastType) {
+                        printf("Failed to analyze path on line %ld.\n", path->line);
+                        return NULL;
+                }
+
+                pathSegment->path.target = lastExpr;
+
+                pathSegment = pathSegment->path.next;
+        }
+
+        return lastExpr;
+}
+
+struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use, struct astnode *def)
 {
         struct astnode *symbol;
+        struct astnode *node;
+        struct astdtype *type;
+
+        if (def) {
+                node = def;
+                type = def->declaration.type;
+                goto _return;
+        }
 
         if (!(symbol = find_symbol(use->variable.identifier, use->super))) {
                 printf("Undefined symbol '%s' referenced on line %ld.\n", use->variable.identifier, use->line);
@@ -520,12 +642,17 @@ struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use
                 return NULL;
         }
 
-        use->variable.var = symbol->symbol.node;
+        node = symbol->symbol.node;
+        type = symbol->symbol.type;
 
-        return symbol->symbol.type;
+        _return:
+
+        use->variable.var = node;
+
+        return type;
 }
 
-struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool *compile_time)
+struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool *compile_time, struct astnode *def)
 {
         if (atom->type == NODE_INTEGER_LITERAL) {
                 struct astdtype *type = required_type_integer(sem, atom->integer_literal.integerValue);
@@ -553,16 +680,26 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                 if (compile_time)
                         *compile_time = false;
 
-                return analyze_function_call(sem, atom);
+                return analyze_function_call(sem, atom, def);
         }
 
         if (atom->type == NODE_POINTER) {
-                if (atom->pointer.target->type != NODE_VARIABLE_USE) {
+                struct astnode *target;
+
+                if (atom->pointer.target->type == NODE_PATH) {
+                        target = analyze_path(sem, atom->pointer.target);
+                        if (!target) {
+                                printf("Invalid path on line %ld.\n", atom->line);
+                                return NULL;
+                        }
+                } else target = atom->pointer.target;
+
+                if (target->type != NODE_VARIABLE_USE) {
                         printf("A pointer can only be created to a variable. Error on line %ld.\n", atom->line);
                         return NULL;
                 }
 
-                struct astdtype *exprType = analyze_expression(sem, atom->pointer.target, compile_time);
+                struct astdtype *exprType = analyze_expression(sem, target, compile_time, target->variable.var);
 
                 if (!exprType) {
                         printf("Could not create pointer on line %ld: Type checking failed.\n", atom->line);
@@ -579,12 +716,51 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                 return semantics_new_type(sem, astdtype_pointer(exprType));
         }
 
+        if (atom->type == NODE_DEREFERENCE) {
+                struct astnode *target;
+
+                if (atom->dereference.target->type == NODE_PATH) {
+                        target = analyze_path(sem, atom->pointer.target);
+                        if (!target) {
+                                printf("Invalid path on line %ld.\n", atom->line);
+                                return NULL;
+                        }
+                } else target = atom->dereference.target;
+
+                if (target->type != NODE_VARIABLE_USE) {
+                        printf("Only a variable may be dereferenced. Error on line %ld.\n", atom->line);
+                        return NULL;
+                }
+
+                struct astdtype *exprType = analyze_expression(sem, target, compile_time, target->variable.var);
+
+                if (!exprType) {
+                        printf("Could not dereference on line %ld: Type checking failed.\n", atom->line);
+                        return NULL;
+                }
+
+                if (exprType->type != ASTDTYPE_POINTER) {
+                        char *typeStr = astdtype_string(exprType);
+                        printf("Cannot dereference a non-pointer type %s. Error on line %ld.\n", typeStr, atom->line);
+                        free(typeStr);
+                        return NULL;
+                }
+
+                return exprType->pointer.to;
+        }
+
         return NULL;
 }
 
-struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *call)
+struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *call, struct astnode *def)
 {
         struct astnode *symbol;
+        struct astnode *definition;
+
+        if (def) {
+                definition = def;
+                goto skip_symbol;
+        }
 
         if (!(symbol = find_symbol(call->function_call.identifier, call->super))) {
                 printf("Attempting to call undefined function \"%s\". Error on line %ld.\n",
@@ -598,7 +774,9 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
                 return NULL;
         }
 
-        struct astnode *definition = symbol->symbol.node;
+        definition = symbol->symbol.node;
+
+        skip_symbol:;
 
         size_t required_params;
 
@@ -623,7 +801,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
         for (size_t i = 0; i < provided_params; i++) {
                 struct astnode *callValue = call->function_call.values->node_compound.array[i];
 
-                struct astdtype *valueType = analyze_expression(sem, callValue, NULL);
+                struct astdtype *valueType = analyze_expression(sem, callValue, NULL, def);
                 if (!valueType)
                         return NULL;
 

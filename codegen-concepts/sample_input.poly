@@ -1,9 +1,0 @@
-include "stdio.h"
-
-present printf(fmt: string, param: string) -> void
-
-type person (firstName: string, lastName: string, birthYear: int16) {
-    fn printFirstName -> void {
-        printf("The first name is: %s\n", this.firstName);
-    }
-}

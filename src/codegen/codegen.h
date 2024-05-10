@@ -30,6 +30,8 @@ void gen_include(struct codegen *, struct astnode *);
 
 void gen_type(struct codegen *, struct astdtype *);
 
+void gen_path(struct codegen *, struct astnode *);
+
 void gen_type_definition(struct codegen *, struct astnode *);
 
 void gen_function_definition(struct codegen *, struct astnode *);

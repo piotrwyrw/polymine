@@ -143,6 +143,24 @@ struct astnode *find_uncertain_reachability_structures(struct astnode *block)
         return NULL;
 }
 
+static struct astnode *filter_type_field(char *id, struct astnode *field)
+{
+        if (strcmp(id, field->declaration.identifier) == 0)
+                return field;
+
+        return NULL;
+}
+
+struct astnode *find_in_type(struct astnode *complex, char *id)
+{
+        struct astnode *field = astnode_compound_foreach(complex->type_definition.fields, id, (void *) filter_type_field);
+
+        if (!field)
+                return NULL;
+
+        return field;
+}
+
 void put_symbol(struct astnode *block, struct astnode *symbol)
 {
         astnode_push_compound(block->block.symbols, symbol);

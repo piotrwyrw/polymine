@@ -87,6 +87,10 @@ void gen_any(_codegen, struct astnode *node)
                 case NODE_STRING_LITERAL:
                 case NODE_FLOAT_LITERAL:
                 case NODE_INTEGER_LITERAL:
+                case NODE_PATH:
+                case NODE_VARIABLE_USE:
+                case NODE_POINTER:
+                case NODE_DEREFERENCE:
                         gen_expression(gen, node);
                         if (!node->holder)
                                 EMIT(";\n");
@@ -199,6 +203,17 @@ void gen_type(_codegen, struct astdtype *type)
         }
 }
 
+void gen_path(_codegen, struct astnode *node)
+{
+        struct astnode *segment = node;
+        while (segment) {
+                gen_expression(gen, segment->path.expr);
+                segment = segment->path.next;
+                if (segment)
+                        EMIT(".");
+        }
+}
+
 static void *gen_complex_field(_codegen, struct astnode *field)
 {
         gen_type(gen, field->declaration.type);
@@ -244,13 +259,14 @@ void gen_variable_declaration(_codegen, struct astnode *decl)
         if (decl->declaration.value) {
                 EMIT(" = ");
                 gen_expression(gen, decl->declaration.value);
-        }
+        } else if (decl->declaration.type->type == ASTDTYPE_COMPLEX) EMIT(" = {}");
         EMIT(";\n");
 }
 
 void gen_assignment(_codegen, struct astnode *assignment)
 {
-        EMIT("%s = ", assignment->assignment.declaration->declaration.generated_id);
+        gen_expression(gen, assignment->assignment.path);
+        EMIT(" = ");
         gen_expression(gen, assignment->assignment.value);
         EMIT(";\n");
 }
@@ -312,8 +328,15 @@ void gen_expression(_codegen, struct astnode *expr)
                         EMIT("&(");
                         gen_expression(gen, expr->pointer.target);
                         EMITB(")");
+                case NODE_DEREFERENCE:
+                        EMIT("(*");
+                        gen_expression(gen, expr->dereference.target);
+                        EMITB(")");
                 case NODE_VOID_PLACEHOLDER:
                 EMITB("/* void */");
+                case NODE_PATH:
+                        gen_path(gen, expr);
+                        break;
                 default:
                         break;
         }

@@ -23,6 +23,7 @@ enum nodetype : uint8_t {
         NODE_BINARY_OP,
         NODE_VARIABLE_DECL,
         NODE_POINTER,
+        NODE_DEREFERENCE,
         NODE_VARIABLE_USE,
         NODE_VARIABLE_ASSIGNMENT,
         NODE_FUNCTION_DEFINITION,
@@ -33,6 +34,7 @@ enum nodetype : uint8_t {
         NODE_VOID_PLACEHOLDER,  // Used in place of 'NULL' e.g. for resolve statements with the return type void
         NODE_IF,
         NODE_COMPLEX_TYPE,
+        NODE_PATH,
 
         // Semantic stuff
         NODE_SYMBOL,
@@ -139,12 +141,22 @@ struct astnode {
                 } pointer;
 
                 struct {
+                        struct astnode *target;
+                } dereference;
+
+                struct {
+                        struct astnode *expr;
+                        struct astnode *next;
+                        struct astnode *target; // Managed by semantic analysis
+                } path;
+
+                struct {
                         char *identifier;
                         struct astnode *var;
                 } variable;
 
                 struct {
-                        char *identifier;
+                        struct astnode *path;
                         struct astnode *value;
                         struct astnode *declaration;
                 } assignment;
@@ -315,9 +327,11 @@ void declaration_generate_name(struct astnode *, size_t);
 
 struct astnode *astnode_pointer(size_t, struct astnode *, struct astnode *);
 
+struct astnode *astnode_dereference(size_t, struct astnode *, struct astnode *);
+
 struct astnode *astnode_variable(size_t, struct astnode *, char *);
 
-struct astnode *astnode_assignment(size_t, struct astnode *, char *, struct astnode *);
+struct astnode *astnode_assignment(size_t, struct astnode *, struct astnode *, struct astnode *);
 
 struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *, struct astnode *);
 
@@ -336,6 +350,8 @@ struct astnode *astnode_data_type(struct astdtype *);
 struct astnode *astnode_void_placeholder(size_t, struct astnode *);
 
 struct astnode *astnode_if(size_t, struct astnode *, struct astnode *, struct astnode *, struct astnode *);
+
+struct astnode *astnode_path(size_t, struct astnode *, struct astnode *);
 
 // Semantic nodes --
 
