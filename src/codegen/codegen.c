@@ -99,6 +99,8 @@ void gen_any(_codegen, struct astnode *node)
                 case NODE_VARIABLE_ASSIGNMENT:
                         gen_assignment(gen, node);
                         break;
+                case NODE_COMPLEX_TYPE:
+                        gen_type_definition(gen, node);
                 case NODE_NOTHING:
                         break;
                 default:
@@ -151,7 +153,7 @@ static void *gen_param(_codegen, struct astnode *_param)
 {
         struct astnode *param = UNWRAP(_param);
 
-        gen_type(gen, param->declaration.type, param->declaration.generated_id);
+        gen_type(gen, param->declaration.type);
 
         EMIT(" %s", param->declaration.generated_id);
 
@@ -163,7 +165,7 @@ static void *gen_param(_codegen, struct astnode *_param)
         return NULL;
 }
 
-void gen_type(_codegen, struct astdtype *type, char *identifier)
+void gen_type(_codegen, struct astdtype *type)
 {
         switch (type->type) {
                 case ASTDTYPE_VOID:
@@ -190,11 +192,27 @@ void gen_type(_codegen, struct astdtype *type, char *identifier)
                         }
                         break;
                 case ASTDTYPE_POINTER:
-                        gen_type(gen, type->pointer.to, NULL);
+                        gen_type(gen, type->pointer.to);
                         EMITB("*");
-                case ASTDTYPE_CUSTOM:
-                EMITB("%s", type->custom.name);
+                case ASTDTYPE_COMPLEX:
+                EMITB("struct %s", type->complex.definition->type_definition.generated_identifier);
         }
+}
+
+static void *gen_complex_field(_codegen, struct astnode *field)
+{
+        gen_type(gen, field->declaration.type);
+        EMIT(" %s;\n", field->declaration.generated_id);
+        return NULL;
+}
+
+void gen_type_definition(_codegen, struct astnode *def)
+{
+        EMIT("struct %s {\n", def->type_definition.generated_identifier);
+
+        astnode_compound_foreach(def->type_definition.fields, gen, (void *) gen_complex_field);
+
+        EMIT("};\n");
 }
 
 void gen_function_definition(_codegen, struct astnode *_fdef)
@@ -206,7 +224,7 @@ void gen_function_definition(_codegen, struct astnode *_fdef)
         else
                 fdef = _fdef->generated_function.definition;
 
-        gen_type(gen, fdef->function_def.type, fdef->function_def.generated->generated_function.generated_id);
+        gen_type(gen, fdef->function_def.type);
         EMIT(" %s(", fdef->function_def.generated->generated_function.generated_id);
 
         gen->param_count = fdef->function_def.params->node_compound.count;
@@ -221,7 +239,7 @@ void gen_function_definition(_codegen, struct astnode *_fdef)
 
 void gen_variable_declaration(_codegen, struct astnode *decl)
 {
-        gen_type(gen, decl->declaration.type, decl->declaration.generated_id);
+        gen_type(gen, decl->declaration.type);
         EMIT(" %s", decl->declaration.generated_id);
         if (decl->declaration.value) {
                 EMIT(" = ");

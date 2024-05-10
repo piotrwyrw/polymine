@@ -32,6 +32,7 @@ enum nodetype : uint8_t {
         NODE_DATA_TYPE,
         NODE_VOID_PLACEHOLDER,  // Used in place of 'NULL' e.g. for resolve statements with the return type void
         NODE_IF,
+        NODE_COMPLEX_TYPE,
 
         // Semantic stuff
         NODE_SYMBOL,
@@ -150,7 +151,7 @@ struct astnode {
 
                 struct {
                         char *identifier;
-                        struct astnode *params; // This is a block too!
+                        struct astnode *params; // This is a compound
                         struct astdtype *type;
                         struct astnode *block;
                         _Bool conditionless_resolve; // Managed by Semantic Analysis
@@ -179,6 +180,13 @@ struct astnode {
                         struct astnode *block;
                         struct astnode *next_branch;
                 } if_statement;
+
+                struct {
+                        char *identifier;
+                        struct astnode *fields;         // A compound. Just like function params. Even the same syntax.
+                        char *generated_identifier;     // } Managed by semantic analysis
+                        size_t number;                  // }
+                } type_definition;
 
                 // -- Stuff for semantic analysis --
                 struct {
@@ -231,7 +239,7 @@ enum astdtype_type : uint8_t {
         ASTDTYPE_VOID = 0,
         ASTDTYPE_POINTER,
         ASTDTYPE_BUILTIN,
-        ASTDTYPE_CUSTOM
+        ASTDTYPE_COMPLEX
 };
 
 /**
@@ -251,7 +259,8 @@ struct astdtype {
 
                 struct {
                         char *name;
-                } custom;
+                        struct astnode *definition;
+                } complex;
         };
 };
 
@@ -267,7 +276,7 @@ struct astdtype *astdtype_void();
 
 struct astdtype *astdtype_string_type();
 
-struct astdtype *astdtype_custom(char *);
+struct astdtype *astdtype_complex(char *);
 
 char *astdtype_string(struct astdtype *);
 
@@ -311,6 +320,10 @@ struct astnode *astnode_variable(size_t, struct astnode *, char *);
 struct astnode *astnode_assignment(size_t, struct astnode *, char *, struct astnode *);
 
 struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *, struct astnode *);
+
+struct astnode *astnode_type_definition(size_t, struct astnode *, char *, struct astnode *);
+
+void complex_type_generate_name(struct astnode *, size_t);
 
 struct astnode *astnode_function_call(size_t, struct astnode *, char *, struct astnode *);
 

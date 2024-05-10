@@ -28,7 +28,9 @@ void gen_if(struct codegen *, struct astnode *, size_t);
 
 void gen_include(struct codegen *, struct astnode *);
 
-void gen_type(struct codegen *, struct astdtype *, char *);
+void gen_type(struct codegen *, struct astdtype *);
+
+void gen_type_definition(struct codegen *, struct astnode *);
 
 void gen_function_definition(struct codegen *, struct astnode *);
 

@@ -92,6 +92,8 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                         return true;
                 case NODE_PRESENT_FUNCTION:
                         return analyze_present_function(sem, node);
+                case NODE_COMPLEX_TYPE:
+                        return analyze_complex_type(sem, node);
                 default:
                         printf("Unknown node type passed to analyze_any(..): %s\n", nodetype_string(node->type));
                         return false;
@@ -127,10 +129,33 @@ _Bool analyze_if(struct semantics *sem, struct astnode *_if)
         return true;
 }
 
+_Bool analyze_type(struct semantics *sem, struct astdtype *type, struct astnode *consumer)
+{
+        if (type->type != ASTDTYPE_COMPLEX)
+                return true;
+
+        struct astnode *sym = find_symbol(type->complex.name, consumer->super);
+
+        if (!sym || (sym && sym->symbol.symtype != SYMBOL_TYPEDEF)) {
+                printf("The complex type \"%s\" does not exist. Error on line %ld.\n", type->complex.name,
+                       consumer->line);
+                return false;
+        }
+
+        type->complex.definition = sym->symbol.node;
+
+        return true;
+}
+
 _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
 {
         if (symbol_conflict(decl->declaration.identifier, decl))
                 return false;
+
+        if (decl->declaration.type && !analyze_type(sem, decl->declaration.type, decl)) {
+                printf("The type of variable \"%s\" is invalid. Error on line %ld.\n", decl->declaration.identifier, decl->line);
+                return false;
+        }
 
         // Type-inferred variables must have a value at the time of declaration
         if (!decl->declaration.type && !decl->declaration.value) {
@@ -252,6 +277,9 @@ static struct semantics *_semantics;
 
 static void *declare_param_variable(struct astnode *fdef, struct astnode *variable)
 {
+        if (!analyze_type(_semantics, variable->declaration.type, variable))
+                return variable;
+
         declaration_generate_name(variable, _semantics->symbol_counter++);
 
         put_symbol(fdef->function_def.block,
@@ -262,6 +290,9 @@ static void *declare_param_variable(struct astnode *fdef, struct astnode *variab
 
 static void *analyze_linked_function_params(struct semantics *sem, struct astnode *param)
 {
+        if (!analyze_type(sem, param->declaration.type, param))
+                return param;
+
         return NULL;
 }
 
@@ -297,6 +328,11 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         if (symbol_conflict(fdef->function_def.identifier, fdef))
                 return false;
 
+        if (fdef->super && fdef->super->holder && fdef->super->holder->type != NODE_PROGRAM) {
+                printf("Functions must be declared in the global scope. Error on line %ld.\n", fdef->line);
+                return false;
+        }
+
         struct astnode *flawed_param;
 
         _semantics = sem;
@@ -312,12 +348,10 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
 
         struct astnode *sym;
 
-        // Anon functions are not declared as symbols (since they're not searchable anyway)
-        if (fdef->function_def.identifier)
-                put_symbol(fdef->function_def.block,
-                           sym = astnode_symbol(fdef->super, SYMBOL_FUNCTION, fdef->function_def.identifier,
-                                                fdef->function_def.type,
-                                                fdef));
+        put_symbol(fdef->function_def.block,
+                   sym = astnode_symbol(fdef->super, SYMBOL_FUNCTION, fdef->function_def.identifier,
+                                        fdef->function_def.type,
+                                        fdef));
 
         if (!analyze_any(sem, fdef->function_def.block))
                 return false;
@@ -345,39 +379,27 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
         return true;
 }
 
-static void *analyze_capture_variable(struct astnode *fdef, struct astnode *var)
+void *analyze_complex_type_field(struct semantics *sem, struct astnode *field)
 {
-        struct astnode *symbol;
-
-        if (!(symbol = find_symbol(var->declaration.identifier, fdef->super))) {
-                printf("The capture group variable \"%s\" is undefined. Error on line %ld.\n",
-                       var->declaration.identifier,
-                       var->line);
-                return var;
-        }
-
-        if (symbol->symbol.symtype != SYMBOL_VARIABLE) {
-                printf("The capture group on line %ld references %s \"%s\" as a variable.\n", var->line,
-                       symbol_type_humanstr(symbol->symbol.symtype), symbol->symbol.identifier);
-                return var;
-        }
-
-        // The function parameters have priority. See if our capture group variable naming conflicts with any params
-        if (find_symbol_shallow(var->declaration.identifier, fdef->function_def.block)) {
-                printf("Capture group variable \"%s\" conflicts with a function parameter of the same name. Error on line %ld.\n",
-                       var->declaration.identifier, var->line);
-                return var;
-        }
-
-        var->declaration.type = symbol->symbol.type;
-        var->declaration.value = WRAP(symbol->symbol.node->declaration.value);
-        var->declaration.refers_to = symbol->symbol.node;
-
-        declare_param_variable(fdef, var);
-
-        astnode_push_compound(fdef->function_def.params, WRAP(var));
-
+        declaration_generate_name(field, sem->symbol_counter++);
         return NULL;
+}
+
+_Bool analyze_complex_type(struct semantics *sem, struct astnode *def)
+{
+        if (astnode_compound_foreach(def->type_definition.fields, sem, (void *) analyze_complex_type_field))
+                return false;
+
+        complex_type_generate_name(def, sem->symbol_counter++);
+
+        struct astdtype *type = astdtype_complex(def->type_definition.identifier);
+        type->complex.definition = def;
+
+        semantics_new_type(sem, type);
+
+        put_symbol(def->super, astnode_symbol(def->super, SYMBOL_TYPEDEF, def->type_definition.identifier, type, def));
+
+        return true;
 }
 
 _Bool analyze_resolve(struct semantics *sem, struct astnode *res)

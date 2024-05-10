@@ -1,10 +1,10 @@
-#include "../common/io.h"
-#include "lexer.h"
-#include "parser.h"
-#include "syntax.h"
-#include "../semantics/semutil.h"
-#include "../common/util.h"
-#include "../codegen/codegen.h"
+#include "common/io.h"
+#include "syntax/lexer.h"
+#include "syntax/parser.h"
+#include "syntax/syntax.h"
+#include "semantics/semutil.h"
+#include "common/util.h"
+#include "codegen/codegen.h"
 
 #include <stdio.h>
 
@@ -40,7 +40,7 @@ int main(void)
         }
 
         struct semantics sem;
-        semantics_init(&sem, p.types);
+        semantics_init(&sem, p.types, node);
 
         if (!analyze_program(&sem, node)) {
                 printf("-- Semantic analysis failed --\n");

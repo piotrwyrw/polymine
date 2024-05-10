@@ -125,7 +125,7 @@ void ast_print(struct astnode *_node, size_t level)
 
                         s = astdtype_string(node->declaration.type);
 
-                        printf(" '%s' [%s]", node->declaration.identifier, s);
+                        printf(" '%s' (%s) [%s]", node->declaration.identifier, node->declaration.generated_id ?: "Not generated", s);
 
                         free(s);
 
@@ -204,6 +204,12 @@ void ast_print(struct astnode *_node, size_t level)
                         INDENTED("Linked function \"%s\" (%s):\n", node->present_function.identifier, s);
                         free(s);
                         ast_print(node->present_function.params, level + 1);
+                        break;
+
+                case NODE_COMPLEX_TYPE:
+                INDENTED("Complex Type \"%s\" (%s):\n", node->type_definition.identifier,
+                         node->type_definition.generated_identifier);
+                        ast_print(node->type_definition.fields, level + 1);
                         break;
 
                 default:

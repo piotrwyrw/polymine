@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.27)
 project(polymine C)
-set(CMAKE_C_STANDARD 90)
+set(CMAKE_C_STANDARD 99)
 set(CMAKE_BUILD_TYPE Debug)
-add_executable(polymine src/syntax/main.c src/common/ast.c src/common/io.c src/syntax/lexer.c src/syntax/parser.c
+add_executable(polymine src/main.c src/common/ast.c src/common/io.c src/syntax/lexer.c src/syntax/parser.c
         src/common/util.h
         src/common/util.c
         src/syntax/syntax.c

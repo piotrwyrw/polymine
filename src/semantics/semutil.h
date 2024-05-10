@@ -14,6 +14,8 @@ struct semantics {
         struct astdtype *_void;
         struct astdtype *string;
 
+        struct astnode *program;
+
         struct astnode *stuff;
 
         size_t symbol_counter;
@@ -21,7 +23,7 @@ struct semantics {
         _Bool pristine; // TRUE if nothing but include nodes were analyzed up until this time
 };
 
-void semantics_init(struct semantics *, struct astnode *types);
+void semantics_init(struct semantics *, struct astnode *types, struct astnode *program);
 
 void semantics_free(struct semantics *);
 

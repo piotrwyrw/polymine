@@ -1,11 +1,9 @@
-fn main -> void {
-    var add = anon (a: int32, b: int32) -> int32 {
-        resolve a + b
-    }
-    var sub = anon (a: int32, b: int32) -> int32 {
-        resolve a - b
-    }
+include "stdio.h"
 
-    var resultSum = add(3, 2)
-    var resultDiff = sub(5, 2)
+present printf(fmt: string, param: string) -> void
+
+type person (firstName: string, lastName: string, birthYear: int16) {
+    fn printFirstName -> void {
+        printf("The first name is: %s\n", this.firstName);
+    }
 }

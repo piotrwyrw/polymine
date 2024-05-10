@@ -49,8 +49,8 @@ void astdtype_free(struct astdtype *adt)
                         // DON'T!
 //                        astdtype_free(adt->pointer.to);
                         break;
-                case ASTDTYPE_CUSTOM:
-                        free(adt->custom.name);
+                case ASTDTYPE_COMPLEX:
+                        free(adt->complex.name);
                         break;
                 default:
                         break;
@@ -92,10 +92,11 @@ struct astdtype *astdtype_string_type()
         return wrapper;
 }
 
-struct astdtype *astdtype_custom(char *name)
+struct astdtype *astdtype_complex(char *id)
 {
-        struct astdtype *wrapper = astdtype_generic(ASTDTYPE_CUSTOM);
-        wrapper->custom.name = strdup(name);
+        struct astdtype *wrapper = astdtype_generic(ASTDTYPE_COMPLEX);
+        wrapper->complex.name = strdup(id);
+        wrapper->complex.definition = NULL;
         return wrapper;
 }
 
@@ -113,8 +114,8 @@ char *astdtype_string(struct astdtype *type)
                 return typename;
         }
 
-        if (type->type == ASTDTYPE_CUSTOM) {
-                strcat(typename, type->custom.name);
+        if (type->type == ASTDTYPE_COMPLEX) {
+                strcat(typename, type->complex.name);
                 return typename;
         }
 
@@ -163,6 +164,10 @@ char *astdtype_string(struct astdtype *type)
                 return typename;
         }
 
+        if (type->type == ASTDTYPE_COMPLEX) {
+                strcat(typename, type->complex.name);
+        }
+
         return typename;
 }
 
@@ -197,6 +202,8 @@ const char *nodetype_string(enum nodetype type)
                 AUTO(NODE_VOID_PLACEHOLDER)
                 AUTO(NODE_NOTHING)
                 AUTO(NODE_UNDEFINED)
+                AUTO(NODE_COMPLEX_TYPE)
+                AUTO(NODE_PRESENT_FUNCTION)
 #undef AUTO
                 default:
                         return "Unknown Node";
@@ -368,6 +375,11 @@ void astnode_free(struct astnode *node)
 
                         astdtype_free(node->data_type.adt);
                         break;
+                case NODE_COMPLEX_TYPE:
+                        free(node->type_definition.identifier);
+                        free(node->type_definition.generated_identifier);
+                        astnode_free(node->type_definition.fields);
+                        break;
                 default:
                         break;
         }
@@ -509,7 +521,10 @@ void declaration_generate_name(struct astnode *decl, size_t number)
 {
         decl->declaration.generated_id = calloc(100, sizeof(char));
         decl->declaration.number = number;
-        sprintf(decl->declaration.generated_id, "_var_%s%ld", decl->declaration.identifier, number);
+        if (decl->holder && decl->holder->type == NODE_COMPOUND)
+                sprintf(decl->declaration.generated_id, "_param_%s%ld", decl->declaration.identifier, number);
+        else
+                sprintf(decl->declaration.generated_id, "_var_%s%ld", decl->declaration.identifier, number);
 }
 
 struct astnode *astnode_pointer(size_t line, struct astnode *block, struct astnode *to)
@@ -548,6 +563,23 @@ struct astnode *astnode_function_definition(size_t line, struct astnode *superbl
         node->function_def.generated = NULL;
         node->function_def.param_count = parameters->node_compound.count;
         return node;
+}
+
+struct astnode *astnode_type_definition(size_t line, struct astnode *super, char *identifier, struct astnode *fields)
+{
+        struct astnode *node = astnode_generic(NODE_COMPLEX_TYPE, line, super);
+        node->type_definition.identifier = strdup(identifier);
+        node->type_definition.fields = fields;
+        node->type_definition.generated_identifier = NULL;
+        return node;
+}
+
+void complex_type_generate_name(struct astnode *complex, size_t number)
+{
+        complex->type_definition.generated_identifier = calloc(100, sizeof(char));
+        complex->type_definition.number = number;
+        sprintf(complex->type_definition.generated_identifier, "_type_%s%ld", complex->type_definition.identifier,
+                number);
 }
 
 struct astnode *astnode_function_call(size_t line, struct astnode *block, char *identifier, struct astnode *values)

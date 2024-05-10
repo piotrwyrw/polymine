@@ -15,9 +15,13 @@ struct astnode *parse_block(struct parser *);
 
 struct astnode *parse_nothing(struct parser *);
 
+struct astnode *parse_type_definition(struct parser *);
+
 struct astnode *parse_variable_declaration(struct parser *);
 
 struct astnode *parse_variable_assignment(struct parser *);
+
+struct astnode *parse_parameters(struct parser *);
 
 struct astnode *parse_function_definition(struct parser *);
 

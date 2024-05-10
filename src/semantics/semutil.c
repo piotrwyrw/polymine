@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h>
 
-void semantics_init(struct semantics *sem, struct astnode *types)
+void semantics_init(struct semantics *sem, struct astnode *types, struct astnode *program)
 {
         sem->int8 = astdtype_builtin(BUILTIN_INT8);
         sem->int16 = astdtype_builtin(BUILTIN_INT16);
@@ -16,6 +16,8 @@ void semantics_init(struct semantics *sem, struct astnode *types)
         sem->stuff = types;
         sem->symbol_counter = 0;
         sem->pristine = true;
+
+        sem->program = program;
 
         semantics_new_include(sem, "inttypes.h");
 }
@@ -168,7 +170,7 @@ static _Bool types_compatible_advanced(struct astdtype *destination, struct astd
         if (destination->type == ASTDTYPE_VOID)
                 return true;
 
-        if (destination->type == ASTDTYPE_CUSTOM && strcmp(destination->custom.name, source->custom.name) == 0)
+        if (destination->type == ASTDTYPE_COMPLEX && strcmp(destination->complex.name, source->complex.name) == 0)
                 return true;
 
 #define XOR(a, b) (((a) && !(b)) || (!(a) && (b)))
@@ -229,7 +231,7 @@ size_t quantify_type_size(struct astdtype *type)
 struct astdtype *required_type(struct astdtype *a, struct astdtype *b)
 {
         // Nooope!
-        if (a->type == ASTDTYPE_CUSTOM || b->type == ASTDTYPE_CUSTOM)
+        if (a->type == ASTDTYPE_COMPLEX || b->type == ASTDTYPE_COMPLEX)
                 return NULL;
 
         // Also nope!

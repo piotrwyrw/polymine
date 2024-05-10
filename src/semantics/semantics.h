@@ -17,11 +17,15 @@ _Bool analyze_any(struct semantics *, struct astnode *);
 
 _Bool analyze_if(struct semantics *, struct astnode *);
 
+_Bool analyze_type(struct semantics *, struct astdtype *, struct astnode *);
+
 _Bool analyze_variable_declaration(struct semantics *, struct astnode *);
 
 _Bool analyze_present_function(struct semantics *, struct astnode *);
 
 _Bool analyze_function_definition(struct semantics *, struct astnode *);
+
+_Bool analyze_complex_type(struct semantics *, struct astnode *);
 
 _Bool analyze_resolve(struct semantics *, struct astnode *);
 
