@@ -170,6 +170,7 @@ struct astnode {
                         struct astnode *attributes; // Compound
                         struct astnode *generated; // generated_function
                         size_t param_count;
+                        size_t provided_param_count; // Used for functions with autofilled params. Such parameters are always located at the end of the param list
                 } function_def;
 
                 struct {

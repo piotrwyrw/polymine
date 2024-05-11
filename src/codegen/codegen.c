@@ -1,5 +1,6 @@
 
 #include "codegen.h"
+#include "../semantics/semutil.h"
 
 #define EMIT(...) fprintf(gen->out, __VA_ARGS__)
 #define EMITB(...) EMIT(__VA_ARGS__); break
@@ -203,14 +204,52 @@ void gen_type(_codegen, struct astdtype *type)
         }
 }
 
-void gen_path(_codegen, struct astnode *node)
+static void *gen_call_param(_codegen, struct astnode *);
+
+void gen_path(_codegen, struct astnode *node, struct astnode *until)
 {
         struct astnode *segment = node;
-        while (segment) {
-                gen_expression(gen, segment->path.expr);
-                segment = segment->path.next;
-                if (segment)
-                        EMIT(".");
+        struct astnode *lastCallSegment = last_call_path(node, until);
+
+        // If there are no function calls in the path (OR the function
+        // is on the first place), we can just generate it as we usually would
+        if (!lastCallSegment || (lastCallSegment && lastCallSegment == segment)) {
+                while (segment && segment != until) { // Yes, we're comparing pointers here (and above), and it's fine!
+                        gen_expression(gen, segment->path.expr);
+                        segment = segment->path.next;
+                        if (segment && segment != until)
+                                EMIT(".");
+                }
+                return;
+        }
+
+        // Otherwise we need to get a little more fancy ...
+        EMIT("%s(",
+             lastCallSegment->path.expr->function_call.definition->function_def.generated->generated_function.generated_id);
+
+        struct astnode *fdef = lastCallSegment->path.expr->function_call.definition;
+
+        // First, generate the function parameters as usual
+        size_t oldCount = gen->param_count;
+        size_t oldNo = gen->param_no;
+
+        size_t actual_param_count = fdef->function_def.param_count - fdef->function_def.provided_param_count;
+
+        gen->param_count = fdef->function_def.param_count;
+        gen->param_no = 0;
+
+        for (size_t i = 0; i < actual_param_count; i++)
+                gen_call_param(gen, lastCallSegment->path.expr->function_call.values->node_compound.array[i]);
+
+        gen->param_count = oldCount;
+        gen->param_no = oldNo;
+
+        gen_path(gen, node, lastCallSegment);
+        EMIT(")");
+
+        if (lastCallSegment->path.next && lastCallSegment->path.next->path.expr->type != NODE_FUNCTION_CALL) {
+                EMIT(".");
+                gen_path(gen, lastCallSegment->path.next, NULL);
         }
 }
 
@@ -221,6 +260,12 @@ static void *gen_complex_field(_codegen, struct astnode *field)
         return NULL;
 }
 
+static void *gen_complex_function(_codegen, struct astnode *fdef)
+{
+        gen_function_definition(gen, fdef);
+        return NULL;
+}
+
 void gen_type_definition(_codegen, struct astnode *def)
 {
         EMIT("struct %s {\n", def->type_definition.generated_identifier);
@@ -228,6 +273,8 @@ void gen_type_definition(_codegen, struct astnode *def)
         astnode_compound_foreach(def->type_definition.fields, gen, (void *) gen_complex_field);
 
         EMIT("};\n");
+
+        astnode_compound_foreach(def->type_definition.block->block.nodes, gen, (void *) gen_complex_function);
 }
 
 void gen_function_definition(_codegen, struct astnode *_fdef)
@@ -264,7 +311,7 @@ static void *gen_default_initializer(_codegen, struct astnode *field)
         if (gen->param_no + 1 < gen->param_count)
                 EMIT(", ");
 
-        gen->param_no ++;
+        gen->param_no++;
 
         return NULL;
 }
@@ -313,7 +360,7 @@ void gen_assignment(_codegen, struct astnode *assignment)
         EMIT(";\n");
 }
 
-static void *gen_call_params(_codegen, struct astnode *expr)
+static void *gen_call_param(_codegen, struct astnode *expr)
 {
         gen_expression(gen, expr);
 
@@ -359,7 +406,7 @@ void gen_expression(_codegen, struct astnode *expr)
                         gen->param_count = expr->function_call.values->node_compound.count;
                         gen->param_no = 0;
 
-                        astnode_compound_foreach(expr->function_call.values, gen, (void *) gen_call_params);
+                        astnode_compound_foreach(expr->function_call.values, gen, (void *) gen_call_param);
 
                         gen->param_count = oldParamCount;
                         gen->param_no = oldParamNo;
@@ -377,7 +424,7 @@ void gen_expression(_codegen, struct astnode *expr)
                 case NODE_VOID_PLACEHOLDER:
                 EMITB("/* void */");
                 case NODE_PATH:
-                        gen_path(gen, expr);
+                        gen_path(gen, expr, NULL);
                         break;
                 default:
                         break;

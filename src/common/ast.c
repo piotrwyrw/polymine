@@ -581,6 +581,7 @@ struct astnode *astnode_function_definition(size_t line, struct astnode *superbl
         node->function_def.attributes = attrs;
         node->function_def.generated = NULL;
         node->function_def.param_count = parameters->node_compound.count;
+        node->function_def.provided_param_count = 0;
         return node;
 }
 

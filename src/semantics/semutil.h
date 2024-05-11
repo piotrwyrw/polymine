@@ -54,6 +54,8 @@ void put_symbol(struct astnode *, struct astnode *);
 
 _Bool is_uppermost_block(struct astnode *);
 
+struct astnode *last_call_path(struct astnode *, struct astnode *);
+
 _Bool types_compatible(struct astdtype *, struct astdtype *);
 
 size_t quantify_type_size(struct astdtype *);

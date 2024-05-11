@@ -341,8 +341,10 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                 return false;
         }
 
-        if (fdef->super && fdef->super->holder && fdef->super->holder->type != NODE_PROGRAM && fdef->super->holder->type != NODE_COMPLEX_TYPE) {
-                printf("Functions must be declared in the global scope or in a type block. Error on line %ld.\n", fdef->line);
+        if (fdef->super && fdef->super->holder && fdef->super->holder->type != NODE_PROGRAM &&
+            fdef->super->holder->type != NODE_COMPLEX_TYPE) {
+                printf("Functions must be declared in the global scope or in a type block. Error on line %ld.\n",
+                       fdef->line);
                 return false;
         }
 
@@ -428,6 +430,8 @@ void *analyze_complex_type_field(struct semantics *sem, struct astnode *field)
         return NULL;
 }
 
+struct astnode *complex_type = NULL;
+
 void *analyze_complex_type_function(struct semantics *sem, struct astnode *fdef)
 {
         if (fdef->type != NODE_FUNCTION_DEFINITION) {
@@ -435,11 +439,23 @@ void *analyze_complex_type_function(struct semantics *sem, struct astnode *fdef)
                 return fdef;
         }
 
+        struct astdtype *type = semantics_new_type(sem,
+                                                   astdtype_complex(complex_type->type_definition.identifier));
+
+        type->complex.definition = complex_type;
+
+        struct astdtype *typePtr = semantics_new_type(sem, astdtype_pointer(type));
+
+        astnode_push_compound(fdef->function_def.params,
+                              astnode_declaration(fdef->line, fdef->super, true, "this", typePtr, NULL));
+
         if (!analyze_function_definition(sem, fdef)) {
                 printf("Analysis of type function \"%s\" failed. Error on line %ld.\n", fdef->function_def.identifier,
                        fdef->line);
                 return fdef;
         }
+
+        fdef->function_def.provided_param_count++; // 'this'
 
         return NULL;
 }
@@ -452,13 +468,6 @@ _Bool analyze_complex_type(struct semantics *sem, struct astnode *def)
                 return false;
         }
 
-        if (astnode_compound_foreach(def->type_definition.block->block.nodes, sem,
-                                     (void *) analyze_complex_type_function)) {
-                printf("Analysis of complex type \"%s\" function block failed. Error on line %ld.\n",
-                       def->type_definition.identifier, def->line);
-                return false;
-        }
-
         complex_type_generate_name(def, sem->symbol_counter++);
 
         struct astdtype *type = astdtype_complex(def->type_definition.identifier);
@@ -467,6 +476,17 @@ _Bool analyze_complex_type(struct semantics *sem, struct astnode *def)
         semantics_new_type(sem, type);
 
         put_symbol(def->super, astnode_symbol(def->super, SYMBOL_TYPEDEF, def->type_definition.identifier, type, def));
+
+        complex_type = def;
+
+        if (astnode_compound_foreach(def->type_definition.block->block.nodes, sem,
+                                     (void *) analyze_complex_type_function)) {
+                printf("Analysis of complex type \"%s\" function block failed. Error on line %ld.\n",
+                       def->type_definition.identifier, def->line);
+                return false;
+        }
+
+        complex_type = NULL;
 
         return true;
 }
@@ -613,6 +633,10 @@ static struct astnode *dereference_all(struct astnode *expr, struct astdtype **t
 
 struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
 {
+        if (path->line == 21) {
+                printf("");
+        }
+
         struct astnode *pathSegment = path;
         struct astdtype *lastType;
         struct astnode *lastExpr = NULL;
@@ -860,7 +884,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
         size_t required_params;
 
         if (definition->type == NODE_FUNCTION_DEFINITION)
-                required_params = definition->function_def.param_count;
+                required_params = definition->function_def.param_count - definition->function_def.provided_param_count;
         else
                 required_params = definition->present_function.params->node_compound.count;
 
@@ -880,7 +904,7 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
         for (size_t i = 0; i < provided_params; i++) {
                 struct astnode *callValue = call->function_call.values->node_compound.array[i];
 
-                struct astdtype *valueType = analyze_expression(sem, callValue, NULL, def);
+                struct astdtype *valueType = analyze_expression(sem, callValue, NULL, NULL);
                 if (!valueType)
                         return NULL;
 

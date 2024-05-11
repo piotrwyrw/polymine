@@ -189,6 +189,24 @@ _Bool is_uppermost_block(struct astnode *block)
         return true;
 }
 
+struct astnode *last_call_path(struct astnode *path, struct astnode *until)
+{
+        struct astnode *tip = path;
+        struct astnode *call = NULL;
+
+        while (tip) {
+                if (tip == until)
+                        return call;
+
+                if (tip->path.expr->type == NODE_FUNCTION_CALL)
+                        call = tip;
+
+                tip = tip->path.next;
+        }
+
+        return call;
+}
+
 /**
  * @param pointer - The types must be an EXACT match
  */
