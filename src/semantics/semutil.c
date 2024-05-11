@@ -151,15 +151,29 @@ static struct astnode *filter_type_field(char *id, struct astnode *field)
         return NULL;
 }
 
+static struct astnode *filter_type_function(char *id, struct astnode *function)
+{
+        if (strcmp(id, function->function_def.identifier) == 0)
+                return function;
+
+        return NULL;
+}
+
 struct astnode *find_in_type(struct astnode *complex, char *id)
 {
         struct astnode *field = astnode_compound_foreach(complex->type_definition.fields, id,
                                                          (void *) filter_type_field);
 
-        if (!field)
-                return NULL;
+        if (field)
+                return field;
 
-        return field;
+        struct astnode *function = astnode_compound_foreach(complex->type_definition.block->block.nodes, id,
+                                                            (void *) filter_type_function);
+
+        if (function)
+                return function;
+
+        return NULL;
 }
 
 void put_symbol(struct astnode *block, struct astnode *symbol)

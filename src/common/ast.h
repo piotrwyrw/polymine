@@ -196,6 +196,7 @@ struct astnode {
                 struct {
                         char *identifier;
                         struct astnode *fields;         // A compound. Just like function params. Even the same syntax.
+                        struct astnode *block;          // The block of type functions
                         char *generated_identifier;     // } Managed by semantic analysis
                         size_t number;                  // }
                 } type_definition;
@@ -208,6 +209,7 @@ struct astnode {
                         struct astnode *node;
                 } symbol;
 
+                // TODO integrate those values into the function struct, as is done is variables
                 struct {
                         struct astnode *definition;
                         size_t number;
@@ -335,7 +337,7 @@ struct astnode *astnode_assignment(size_t, struct astnode *, struct astnode *, s
 
 struct astnode *astnode_function_definition(size_t, struct astnode *, char *, struct astnode *, struct astdtype *, struct astnode *, struct astnode *);
 
-struct astnode *astnode_type_definition(size_t, struct astnode *, char *, struct astnode *);
+struct astnode *astnode_type_definition(size_t, struct astnode *, char *, struct astnode *, struct astnode *);
 
 void complex_type_generate_name(struct astnode *, size_t);
 

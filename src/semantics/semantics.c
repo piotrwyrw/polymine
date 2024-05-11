@@ -341,10 +341,12 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                 return false;
         }
 
-        if (fdef->super && fdef->super->holder && fdef->super->holder->type != NODE_PROGRAM) {
-                printf("Functions must be declared in the global scope. Error on line %ld.\n", fdef->line);
+        if (fdef->super && fdef->super->holder && fdef->super->holder->type != NODE_PROGRAM && fdef->super->holder->type != NODE_COMPLEX_TYPE) {
+                printf("Functions must be declared in the global scope or in a type block. Error on line %ld.\n", fdef->line);
                 return false;
         }
+
+        ok:;
 
         struct astnode *flawed_param;
 
@@ -426,10 +428,33 @@ void *analyze_complex_type_field(struct semantics *sem, struct astnode *field)
         return NULL;
 }
 
+void *analyze_complex_type_function(struct semantics *sem, struct astnode *fdef)
+{
+        if (fdef->type != NODE_FUNCTION_DEFINITION) {
+                printf("The block of a complex type may only contain functions. Error on line %ld.\n", fdef->line);
+                return fdef;
+        }
+
+        if (!analyze_function_definition(sem, fdef)) {
+                printf("Analysis of type function \"%s\" failed. Error on line %ld.\n", fdef->function_def.identifier,
+                       fdef->line);
+                return fdef;
+        }
+
+        return NULL;
+}
+
 _Bool analyze_complex_type(struct semantics *sem, struct astnode *def)
 {
         if (astnode_compound_foreach(def->type_definition.fields, sem, (void *) analyze_complex_type_field)) {
                 printf("Type analysis failed for fields of type \"%s\". Error on line %ld.\n",
+                       def->type_definition.identifier, def->line);
+                return false;
+        }
+
+        if (astnode_compound_foreach(def->type_definition.block->block.nodes, sem,
+                                     (void *) analyze_complex_type_function)) {
+                printf("Analysis of complex type \"%s\" function block failed. Error on line %ld.\n",
                        def->type_definition.identifier, def->line);
                 return false;
         }
@@ -641,13 +666,13 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
 
                 struct astnode *def = find_in_type(lastType->complex.definition, id);
 
-                lastExpr = expr;
-
                 if (!def) {
                         printf("The complex type \"%s\" does not contain an element named \"%s\". Invalid path. Error on line %ld.\n",
                                lastType->complex.name, id, expr->line);
                         return NULL;
                 }
+
+                lastExpr = expr;
 
                 lastType = analyze_expression(sem, expr, NULL, def);
 
@@ -747,7 +772,7 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                 } else target = atom->pointer.target;
 
                 if (target->type != NODE_VARIABLE_USE) {
-                        printf("A pointer can only be created to a variable. Error on line %ld.\n", atom->line);
+                        printf("A pointer an only be created to a variable. Error on line %ld.\n", atom->line);
                         return NULL;
                 }
 
@@ -779,8 +804,10 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                         }
                 } else target = atom->dereference.target;
 
-                if (target->type != NODE_VARIABLE_USE) {
-                        printf("Only a variable may be dereferenced. Error on line %ld.\n", atom->line);
+                if (target->type != NODE_VARIABLE_USE && target->type != NODE_POINTER &&
+                    target->type != NODE_DEREFERENCE) {
+                        printf("Only a variable, pointer or dereference may be dereferenced. Error on line %ld.\n",
+                               atom->line);
                         return NULL;
                 }
 

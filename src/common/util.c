@@ -221,6 +221,7 @@ void ast_print(struct astnode *_node, size_t level)
                 INDENTED("Complex Type \"%s\" (%s):\n", node->type_definition.identifier,
                          node->type_definition.generated_identifier);
                         ast_print(node->type_definition.fields, level + 1);
+                        ast_print(node->type_definition.block, level + 1);
                         break;
 
                 case NODE_PATH:

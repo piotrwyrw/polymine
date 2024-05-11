@@ -217,7 +217,24 @@ struct astnode *parse_type_definition(struct parser *p)
                 return NULL;
         }
 
-        struct astnode *def = astnode_type_definition(p->line, p->block, id, fields);;
+        struct astnode *block = NULL;
+
+        if (p->current.type == LX_LBRACE) {
+                block = parse_block(p);
+                if (!block) {
+                        astnode_free(fields);
+                        free(id);
+                        return NULL;
+                }
+        }
+
+        if (!block)
+                block = astnode_empty_block(p->line, p->block);
+
+        struct astnode *def = astnode_type_definition(p->line, p->block, id, fields, block);
+
+        def->type_definition.block->holder = def;
+        def->type_definition.fields->holder = def;
 
         free(id);
 

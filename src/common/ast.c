@@ -383,6 +383,7 @@ void astnode_free(struct astnode *node)
                         free(node->type_definition.identifier);
                         free(node->type_definition.generated_identifier);
                         astnode_free(node->type_definition.fields);
+                        astnode_free(node->type_definition.block);
                         break;
                 case NODE_PATH:
                         astnode_free(node->path.expr);
@@ -530,7 +531,10 @@ void declaration_generate_name(struct astnode *decl, size_t number)
         decl->declaration.generated_id = calloc(100, sizeof(char));
         decl->declaration.number = number;
         if (decl->holder && decl->holder->type == NODE_COMPOUND)
-                sprintf(decl->declaration.generated_id, "_param_%s%ld", decl->declaration.identifier, number);
+                if (decl->holder->holder && decl->holder->holder->type == NODE_COMPLEX_TYPE)
+                        sprintf(decl->declaration.generated_id, "_field_%s%ld", decl->declaration.identifier, number);
+                else
+                        sprintf(decl->declaration.generated_id, "_param_%s%ld", decl->declaration.identifier, number);
         else
                 sprintf(decl->declaration.generated_id, "_var_%s%ld", decl->declaration.identifier, number);
 }
@@ -580,11 +584,12 @@ struct astnode *astnode_function_definition(size_t line, struct astnode *superbl
         return node;
 }
 
-struct astnode *astnode_type_definition(size_t line, struct astnode *super, char *identifier, struct astnode *fields)
+struct astnode *astnode_type_definition(size_t line, struct astnode *super, char *identifier, struct astnode *fields, struct astnode *block)
 {
         struct astnode *node = astnode_generic(NODE_COMPLEX_TYPE, line, super);
         node->type_definition.identifier = strdup(identifier);
         node->type_definition.fields = fields;
+        node->type_definition.block = block;
         node->type_definition.generated_identifier = NULL;
         return node;
 }
