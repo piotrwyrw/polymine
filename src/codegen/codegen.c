@@ -252,6 +252,23 @@ void gen_function_definition(_codegen, struct astnode *_fdef)
         EMIT("}\n\n");
 }
 
+static void *gen_default_initializer(_codegen, struct astnode *field)
+{
+        if (!field->declaration.value)
+                return NULL;
+
+        EMIT(".%s = ", field->declaration.generated_id);
+
+        gen_expression(gen, field->declaration.value);
+
+        if (gen->param_no + 1 < gen->param_count)
+                EMIT(", ");
+
+        gen->param_no ++;
+
+        return NULL;
+}
+
 void gen_variable_declaration(_codegen, struct astnode *decl)
 {
         gen_type(gen, decl->declaration.type);
@@ -259,7 +276,32 @@ void gen_variable_declaration(_codegen, struct astnode *decl)
         if (decl->declaration.value) {
                 EMIT(" = ");
                 gen_expression(gen, decl->declaration.value);
-        } else if (decl->declaration.type->type == ASTDTYPE_COMPLEX) EMIT(" = {}");
+        } else if (decl->declaration.type->type == ASTDTYPE_COMPLEX) {
+                EMIT(" = {");
+
+                struct astnode *typeDef = decl->declaration.type->complex.definition;
+                struct astnode *fields = typeDef->type_definition.fields;
+                size_t n = 0;
+
+                // Find out how many fields have a default initializer
+                for (size_t i = 0; i < fields->node_compound.count; i++)
+                        if (fields->node_compound.array[i]->declaration.value)
+                                n++;
+
+                size_t oldCount = gen->param_count;
+                size_t oldNo = gen->param_no;
+
+                gen->param_count = n;
+                gen->param_no = 0;
+
+                astnode_compound_foreach(typeDef->type_definition.fields, gen,
+                                         (void *) gen_default_initializer);
+
+                gen->param_count = oldCount;
+                gen->param_no = oldNo;
+
+                EMIT("}");
+        }
         EMIT(";\n");
 }
 

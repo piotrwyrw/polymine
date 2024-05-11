@@ -210,7 +210,7 @@ struct astnode *parse_type_definition(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *fields = parse_parameters(p);
+        struct astnode *fields = parse_parameters(p, true);
 
         if (!fields) {
                 free(id);
@@ -290,7 +290,7 @@ struct astnode *parse_variable_declaration(struct parser *p)
         return decl;
 }
 
-struct astnode *parse_parameters(struct parser *p)
+struct astnode *parse_parameters(struct parser *p, _Bool defaultValues)
 {
         if (p->current.type != LX_LPAREN) {
                 printf("Expected '(' at the beginning of a parameter list. Got %s (\"%s\") on line %ld.\n",
@@ -338,7 +338,29 @@ struct astnode *parse_parameters(struct parser *p)
                         return NULL;
                 }
 
-                struct astnode *declaration = astnode_declaration(p->line, p->block, false, id, type, NULL);
+                struct astnode *value = NULL;
+
+                if (p->current.type == LX_IDEN && strcmp(p->current.value, "default") == 0) {
+                        if (!defaultValues) {
+                                printf("Default values are not allowed in a parameter list in this context. Error on line %ld.\n",
+                                       p->line);
+                                free(id);
+                                astnode_free(params);
+                                return NULL;
+                        }
+
+                        parser_advance(p);
+
+                        value = parse_expr(p);
+
+                        if (!value) {
+                                free(id);
+                                astnode_free(params);
+                                return NULL;
+                        }
+                }
+
+                struct astnode *declaration = astnode_declaration(p->line, p->block, false, id, type, value);
                 declaration->holder = params;
                 astnode_push_compound(params, declaration);
 
@@ -405,7 +427,7 @@ struct astnode *parse_function_definition(struct parser *p)
         struct astnode *params = NULL;
 
         if (p->current.type == LX_LPAREN) {
-                params = parse_parameters(p);
+                params = parse_parameters(p, false);
                 if (!params) {
                         free(id);
                         astnode_free(attrs);
@@ -515,7 +537,7 @@ struct astnode *parse_present(struct parser *p)
 
         parser_advance(p);
 
-        struct astnode *params = parse_parameters(p);
+        struct astnode *params = parse_parameters(p, false);
 
         if (!params) {
                 free(id);

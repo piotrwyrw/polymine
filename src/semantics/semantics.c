@@ -394,8 +394,33 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
 
 void *analyze_complex_type_field(struct semantics *sem, struct astnode *field)
 {
-        if (!analyze_type(sem, field->declaration.type, field))
+        struct astdtype *type = field->declaration.type;
+
+        if (!analyze_type(sem, type, field))
                 return field;
+
+        if (field->declaration.value) {
+                _Bool compileTime;
+                struct astdtype *exprType = analyze_expression(sem, field->declaration.value, &compileTime, NULL);
+
+                if (!exprType) {
+                        printf("Type analysis failed for default expression of field \"%s\" on line %ld.\n",
+                               field->declaration.identifier, field->line);
+                        return field;
+                }
+
+                if (!compileTime) {
+                        printf("The default value for field \"%s\" is not a compile-time constant. Error on line %ld.\n",
+                               field->declaration.identifier, field->line);
+                        return field;
+                }
+
+                if (!types_compatible(type, exprType)) {
+                        printf("The type of field \"%s\" is not compatible with the assigned default value. Error on line %ld.\n",
+                               field->declaration.identifier, field->line);
+                        return field;
+                }
+        }
 
         declaration_generate_name(field, sem->symbol_counter++);
         return NULL;
@@ -547,6 +572,20 @@ static struct astdtype *analyze_path_as_expression(struct semantics *sem, struct
         return NULL;
 }
 
+static struct astnode *dereference_all(struct astnode *expr, struct astdtype **type)
+{
+        struct astnode *deref = expr;
+        struct astdtype *outType;
+        size_t deg = find_pointer_degree(*type, &outType);
+
+        for (size_t i = 0; i < deg; i++)
+                deref = astnode_dereference(expr->line, expr->super, deref);
+
+        *type = outType;
+
+        return deref;
+}
+
 struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
 {
         struct astnode *pathSegment = path;
@@ -566,6 +605,13 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
                                 printf("Semantic analysis failed for path on line %ld.\n", path->line);
                                 return NULL;
                         }
+
+                        // QoL improvements: Don't require explicit type dereferencing in path
+                        if (pathSegment->path.next) {
+                                lastExpr = dereference_all(lastExpr, &lastType);
+                                pathSegment->path.expr = lastExpr;
+                        }
+
                         first = false;
                         pathSegment->path.target = lastExpr;
                         pathSegment = pathSegment->path.next;
@@ -608,6 +654,12 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
                 if (!lastType) {
                         printf("Failed to analyze path on line %ld.\n", path->line);
                         return NULL;
+                }
+
+                // QoL improvements: Don't require explicit type dereferencing in path
+                if (pathSegment->path.next) {
+                        lastExpr = dereference_all(lastExpr, &lastType);
+                        pathSegment->path.expr = lastExpr;
                 }
 
                 pathSegment->path.target = lastExpr;

@@ -153,7 +153,8 @@ static struct astnode *filter_type_field(char *id, struct astnode *field)
 
 struct astnode *find_in_type(struct astnode *complex, char *id)
 {
-        struct astnode *field = astnode_compound_foreach(complex->type_definition.fields, id, (void *) filter_type_field);
+        struct astnode *field = astnode_compound_foreach(complex->type_definition.fields, id,
+                                                         (void *) filter_type_field);
 
         if (!field)
                 return NULL;
@@ -293,6 +294,21 @@ struct astdtype *semantics_new_type(struct semantics *sem, struct astdtype *type
 {
         astnode_push_compound(sem->stuff, astnode_data_type(type));
         return type;
+}
+
+size_t find_pointer_degree(struct astdtype *type, struct astdtype **outType)
+{
+        size_t deg = 0;
+        struct astdtype *tip = type;
+
+        while (tip->type == ASTDTYPE_POINTER) {
+                deg++;
+                tip = tip->pointer.to;
+        }
+
+        *outType = tip;
+
+        return deg;
 }
 
 void semantics_new_function(struct semantics *sem, struct astnode *function)
