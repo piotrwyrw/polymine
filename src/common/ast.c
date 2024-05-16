@@ -234,6 +234,8 @@ enum binaryop bop_from_lxtype(enum lxtype type)
                         return BOP_RGREATER;
                 case LX_RGREQUAL:
                         return BOP_RGREQ;
+                case LX_DOUBLE_EQUALS:
+                        return BOP_EQUALS;
                 default:
                         return BOP_UNKNOWN;
         }
@@ -254,6 +256,7 @@ const char *binaryop_string(enum binaryop op)
                 AUTO(BOP_LGREATER)
                 AUTO(BOP_AND)
                 AUTO(BOP_OR)
+                AUTO(BOP_EQUALS)
         }
 #undef AUTO
 }
@@ -281,6 +284,8 @@ const char *binaryop_cstr(enum binaryop op)
                         return "<";
                 case BOP_RGREQ:
                         return "<=";
+                case BOP_EQUALS:
+                        return "==";
                 default:
                         return "?";
         }
@@ -399,6 +404,7 @@ void astnode_free(struct astnode *node)
 struct astnode *astnode_generic(enum nodetype type, size_t line, struct astnode *block)
 {
         struct astnode *node = malloc(sizeof(struct astnode));
+        node->ignore = false;
         node->type = type;
         node->line = line;
         node->super = block;
@@ -532,11 +538,11 @@ void declaration_generate_name(struct astnode *decl, size_t number)
         decl->declaration.number = number;
         if (decl->holder && decl->holder->type == NODE_COMPOUND)
                 if (decl->holder->holder && decl->holder->holder->type == NODE_COMPLEX_TYPE)
-                        sprintf(decl->declaration.generated_id, "_field_%s%ld", decl->declaration.identifier, number);
+                        sprintf(decl->declaration.generated_id, "pField_%s%ld", decl->declaration.identifier, number);
                 else
-                        sprintf(decl->declaration.generated_id, "_param_%s%ld", decl->declaration.identifier, number);
+                        sprintf(decl->declaration.generated_id, "pParam_%s%ld", decl->declaration.identifier, number);
         else
-                sprintf(decl->declaration.generated_id, "_var_%s%ld", decl->declaration.identifier, number);
+                sprintf(decl->declaration.generated_id, "pVar_%s%ld", decl->declaration.identifier, number);
 }
 
 struct astnode *astnode_pointer(size_t line, struct astnode *block, struct astnode *to)
@@ -599,7 +605,7 @@ void complex_type_generate_name(struct astnode *complex, size_t number)
 {
         complex->type_definition.generated_identifier = calloc(100, sizeof(char));
         complex->type_definition.number = number;
-        sprintf(complex->type_definition.generated_identifier, "_type_%s%ld", complex->type_definition.identifier,
+        sprintf(complex->type_definition.generated_identifier, "pType_%s%ld", complex->type_definition.identifier,
                 number);
 }
 
@@ -653,8 +659,8 @@ struct astnode *astnode_path(size_t line, struct astnode *super, struct astnode 
 {
         struct astnode *node = astnode_generic(NODE_PATH, line, super);
         node->path.expr = expr;
-        node->path.target = NULL;
         node->path.next = NULL;
+        node->path.type = NULL;
         return node;
 }
 
@@ -685,9 +691,9 @@ struct astnode *astnode_generated_function(struct astnode *definition, size_t nu
 
         if (strcmp(definition->function_def.identifier, "main") == 0) {
                 id = "polymine_bootstrap";
-                sprintf(node->generated_function.generated_id, "_fn_%s", id);
+                sprintf(node->generated_function.generated_id, "pFn_%s", id);
         } else {
-                sprintf(node->generated_function.generated_id, "_fn_%s%ld", id, number);
+                sprintf(node->generated_function.generated_id, "pFn_%s%ld", id, number);
         }
 
         return node;

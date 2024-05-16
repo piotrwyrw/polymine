@@ -11,12 +11,15 @@ struct codegen {
 
         FILE *out;
 
+        // From the semantic analysis
+        size_t symbol_counter;
+
         // Temporary stuff for code generation and keeping track of state
         size_t param_count;
         size_t param_no;
 };
 
-void codegen_init(struct codegen *, struct astnode *, struct astnode *, FILE *);
+void codegen_init(struct codegen *, struct astnode *, struct astnode *, size_t, FILE *);
 
 void gen_generate(struct codegen *);
 
@@ -41,5 +44,9 @@ void gen_variable_declaration(struct codegen *, struct astnode *);
 void gen_assignment(struct codegen *, struct astnode *);
 
 void gen_expression(struct codegen *, struct astnode *);
+
+struct astnode *temporary_variable(struct codegen *, struct astdtype *, struct astnode *);
+
+void register_allocation(struct codegen *, struct astnode *);
 
 #endif

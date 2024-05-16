@@ -621,6 +621,11 @@ struct astnode *parse_if(struct parser *p)
 
         struct astnode *block = parse_block(p);
 
+        if (!block) {
+                astnode_free(expr);
+                return NULL;
+        }
+
         struct astnode *base = astnode_if(p->line, p->block, expr, block, NULL);
 
         block->holder = base;
@@ -858,7 +863,8 @@ struct astnode *parse_multiplicative_expr(struct parser *p)
                 return NULL;
 
         while (p->current.type == LX_ASTERISK || p->current.type == LX_SLASH || p->current.type == LX_LGREATER ||
-               p->current.type == LX_LGREQUAL || p->current.type == LX_RGREATER || p->current.type == LX_RGREQUAL) {
+               p->current.type == LX_LGREQUAL || p->current.type == LX_RGREATER || p->current.type == LX_RGREQUAL
+               || p->current.type == LX_DOUBLE_EQUALS) {
 
                 enum binaryop op = bop_from_lxtype(p->current.type);
 

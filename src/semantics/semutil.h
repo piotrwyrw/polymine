@@ -62,7 +62,7 @@ size_t quantify_type_size(struct astdtype *);
 
 struct astdtype *required_type(struct astdtype *, struct astdtype *);
 
-struct astdtype *required_type_integer(struct semantics *, int);
+struct astdtype *required_type_integer(struct semantics *sem, int64_t value);
 
 struct astdtype *semantics_new_type(struct semantics *, struct astdtype *);
 

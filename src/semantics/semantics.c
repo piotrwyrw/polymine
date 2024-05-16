@@ -518,6 +518,12 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
                 return false;
         }
 
+        if (function->function_def.type->type == ASTDTYPE_VOID && res->resolve.value->type != NODE_NOTHING) {
+                printf("Void-typed expression are not valid return values for void-valued function. Error on line %ld.\n",
+                       res->line);
+                return false;
+        }
+
         if (!find_uncertain_reachability_structures(res->super))
                 function->function_def.conditionless_resolve = true;
 
@@ -661,8 +667,9 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
                                 pathSegment->path.expr = lastExpr;
                         }
 
+                        pathSegment->path.type = lastType;
+
                         first = false;
-                        pathSegment->path.target = lastExpr;
                         pathSegment = pathSegment->path.next;
                         continue;
                 }
@@ -696,6 +703,17 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
                         return NULL;
                 }
 
+#define XOR(a, b) (((a) && !(b)) || (!(a) && (b)))
+
+                if (XOR(expr->type == NODE_VARIABLE_USE, def->type == NODE_VARIABLE_DECL) ||
+                    XOR(expr->type == NODE_FUNCTION_CALL, def->type == NODE_FUNCTION_DEFINITION)) {
+                        printf("The path calls for %s, the search yielded %s. Error on line %ld.\n",
+                               nodetype_string(expr->type), nodetype_string(def->type), def->line);
+                        return NULL;
+                }
+
+#undef XOR
+
                 lastExpr = expr;
 
                 lastType = analyze_expression(sem, expr, NULL, def);
@@ -711,7 +729,7 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
                         pathSegment->path.expr = lastExpr;
                 }
 
-                pathSegment->path.target = lastExpr;
+                pathSegment->path.type = lastType;
 
                 pathSegment = pathSegment->path.next;
         }

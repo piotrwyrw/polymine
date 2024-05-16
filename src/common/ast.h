@@ -63,7 +63,8 @@ enum binaryop : uint8_t {
         BOP_LGREQ,
 
         BOP_RGREATER,
-        BOP_RGREQ
+        BOP_RGREQ,
+        BOP_EQUALS
 };
 
 enum binaryop bop_from_lxtype(enum lxtype);
@@ -85,6 +86,7 @@ struct astdtype;
 struct astnode {
         enum nodetype type;
         size_t line;
+        _Bool ignore;
         struct astnode *super; // The enclosing block
         struct astnode *holder; // The holder node. NULL most of the time.
         union {
@@ -147,7 +149,7 @@ struct astnode {
                 struct {
                         struct astnode *expr;
                         struct astnode *next;
-                        struct astnode *target; // Managed by semantic analysis
+                        struct astdtype *type;
                 } path;
 
                 struct {

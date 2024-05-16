@@ -7,11 +7,12 @@
 
 #define _codegen struct codegen *gen
 
-void codegen_init(struct codegen *codegen, struct astnode *program, struct astnode *stuff, FILE *out)
+void codegen_init(struct codegen *codegen, struct astnode *program, struct astnode *stuff, size_t counter, FILE *out)
 {
         codegen->program = program;
         codegen->stuff = stuff;
         codegen->out = out;
+        codegen->symbol_counter = counter;
         codegen->param_count = 0;
         codegen->param_no = 0;
 }
@@ -27,10 +28,10 @@ static void *gen_includes(_codegen, struct astnode *node)
 
 static void gen_bootstrap(_codegen)
 {
-        EMIT("void _fn_polymine_bootstrap();\n"
+        EMIT("void pFn_polymine_bootstrap();\n"
              "\n"
              "int main(void) {\n"
-             "        _fn_polymine_bootstrap();\n"
+             "        pFn_polymine_bootstrap();\n"
              "        return 0;\n"
              "}\n\n");
 }
@@ -61,6 +62,9 @@ static void gen_compound(_codegen, struct astnode *compound)
 
 void gen_any(_codegen, struct astnode *node)
 {
+        if (node->ignore)
+                return;
+
         switch (node->type) {
                 case NODE_PROGRAM:
                         gen_compound(gen, node->program.block->block.nodes);
@@ -318,6 +322,8 @@ static void *gen_default_initializer(_codegen, struct astnode *field)
 
 void gen_variable_declaration(_codegen, struct astnode *decl)
 {
+        struct astnode *pathOutput = NULL;
+
         gen_type(gen, decl->declaration.type);
         EMIT(" %s", decl->declaration.generated_id);
         if (decl->declaration.value) {
@@ -429,6 +435,19 @@ void gen_expression(_codegen, struct astnode *expr)
                 default:
                         break;
         }
+}
+
+struct astnode *temporary_variable(_codegen, struct astdtype *type, struct astnode *value)
+{
+        struct astnode *var = astnode_declaration(0, NULL, true, "tmp", type, value);
+        declaration_generate_name(var, gen->symbol_counter++);
+        register_allocation(gen, var);
+        return var;
+}
+
+void register_allocation(_codegen, struct astnode *node)
+{
+        astnode_push_compound(gen->stuff, node);
 }
 
 #undef EMITB

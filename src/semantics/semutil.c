@@ -306,11 +306,11 @@ struct astdtype *required_type(struct astdtype *a, struct astdtype *b)
         return a;
 }
 
-struct astdtype *required_type_integer(struct semantics *sem, int value)
+struct astdtype *required_type_integer(struct semantics *sem, int64_t value)
 {
         size_t size = ((size_t) log2(value) + 1);
 
-        if (size <= 8)
+        if (size < 8)
                 return sem->int8;
         if (size <= 16)
                 return sem->int16;
@@ -370,7 +370,7 @@ struct astnode *symbol_conflict(char *id, struct astnode *node)
         struct astnode *symbol;
 
         // Node: Functions may not be shadowed to avoid confusion
-        if ((symbol = find_symbol(id, node->super)) && symbol->super == node->super) {
+        if ((symbol = find_symbol(id, node->super)) && (symbol->super == node->super || symbol->symbol.type != SYMBOL_VARIABLE)) {
                 printf("The symbol '%s' is already defined - Redefinition attempted on line %ld. Previous definition on line %ld as a %s.\n",
                        id, node->line, symbol->line,
                        symbol_type_humanstr(symbol->symbol.symtype));
