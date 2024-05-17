@@ -121,6 +121,8 @@ _Bool analyze_if(struct semantics *sem, struct astnode *_if)
                 return false;
         }
 
+        _if->if_statement.exprType = type;
+
         skip_expression:
 
         if (!analyze_block(sem, _if->if_statement.block))
@@ -518,8 +520,8 @@ _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
                 return false;
         }
 
-        if (function->function_def.type->type == ASTDTYPE_VOID && res->resolve.value->type != NODE_NOTHING) {
-                printf("Void-typed expression are not valid return values for void-valued function. Error on line %ld.\n",
+        if (function->function_def.type->type == ASTDTYPE_VOID && res->resolve.value->type != NODE_VOID_PLACEHOLDER) {
+                printf("Void-typed expressions are not valid return values for void-valued function. Error on line %ld.\n",
                        res->line);
                 return false;
         }

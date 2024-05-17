@@ -192,6 +192,7 @@ struct astnode {
 
                 struct {
                         struct astnode *expr;
+                        struct astdtype *exprType;
                         struct astnode *block;
                         struct astnode *next_branch;
                 } if_statement;

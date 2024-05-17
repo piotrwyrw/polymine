@@ -541,8 +541,10 @@ void declaration_generate_name(struct astnode *decl, size_t number)
                         sprintf(decl->declaration.generated_id, "pField_%s%ld", decl->declaration.identifier, number);
                 else
                         sprintf(decl->declaration.generated_id, "pParam_%s%ld", decl->declaration.identifier, number);
-        else
+        else if (decl->super)
                 sprintf(decl->declaration.generated_id, "pVar_%s%ld", decl->declaration.identifier, number);
+        else
+                sprintf(decl->declaration.generated_id, "pgTmp_%s%ld", decl->declaration.identifier, number);
 }
 
 struct astnode *astnode_pointer(size_t line, struct astnode *block, struct astnode *to)

@@ -120,6 +120,16 @@ void gen_any(_codegen, struct astnode *node)
 
 void gen_resolve(_codegen, struct astnode *node)
 {
+        if (node->resolve.value->type != NODE_VOID_PLACEHOLDER) {
+                struct astnode *resolveValueVariable = temporary_variable(gen,
+                                                                          node->resolve.function->function_def.type,
+                                                                          WRAP(node->resolve.value));
+                gen_variable_declaration(gen, resolveValueVariable);
+
+                EMIT("return %s;\n", resolveValueVariable->declaration.generated_id);
+                return;
+        }
+
         EMIT("return ");
         gen_expression(gen, node->resolve.value);
         EMIT(";\n");
@@ -127,6 +137,13 @@ void gen_resolve(_codegen, struct astnode *node)
 
 void gen_if(_codegen, struct astnode *node, size_t branch_number)
 {
+        struct astnode *ifExprVar = NULL;
+
+        if (node->if_statement.expr) {
+                ifExprVar = temporary_variable(gen, node->if_statement.exprType, WRAP(node->if_statement.expr));
+                gen_variable_declaration(gen, ifExprVar);
+        }
+
         if (branch_number == 0)
                 EMIT("if");
         else {
@@ -137,11 +154,8 @@ void gen_if(_codegen, struct astnode *node, size_t branch_number)
                         EMIT(" ");
         }
 
-        if (node->if_statement.expr) {
-                EMIT(" (");
-                gen_expression(gen, node->if_statement.expr);
-                EMIT(") ");
-        }
+        if (ifExprVar)
+                EMIT(" (%s)", ifExprVar->declaration.generated_id);
 
         EMIT("{\n");
 
@@ -210,6 +224,7 @@ void gen_type(_codegen, struct astdtype *type)
 
 static void *gen_call_param(_codegen, struct astnode *);
 
+// TODO
 void gen_path(_codegen, struct astnode *node, struct astnode *until)
 {
         struct astnode *segment = node;
@@ -322,13 +337,13 @@ static void *gen_default_initializer(_codegen, struct astnode *field)
 
 void gen_variable_declaration(_codegen, struct astnode *decl)
 {
-        struct astnode *pathOutput = NULL;
+        struct astnode *value = UNWRAP(decl->declaration.value);
 
         gen_type(gen, decl->declaration.type);
         EMIT(" %s", decl->declaration.generated_id);
-        if (decl->declaration.value) {
+        if (value) {
                 EMIT(" = ");
-                gen_expression(gen, decl->declaration.value);
+                gen_expression(gen, value);
         } else if (decl->declaration.type->type == ASTDTYPE_COMPLEX) {
                 EMIT(" = {");
 
@@ -378,8 +393,10 @@ static void *gen_call_param(_codegen, struct astnode *expr)
         return NULL;
 }
 
-void gen_expression(_codegen, struct astnode *expr)
+void gen_expression(_codegen, struct astnode *_expr)
 {
+        struct astnode *expr = UNWRAP(_expr);
+
         struct astnode *n;
         switch (expr->type) {
                 case NODE_INTEGER_LITERAL:
@@ -439,7 +456,7 @@ void gen_expression(_codegen, struct astnode *expr)
 
 struct astnode *temporary_variable(_codegen, struct astdtype *type, struct astnode *value)
 {
-        struct astnode *var = astnode_declaration(0, NULL, true, "tmp", type, value);
+        struct astnode *var = astnode_declaration(0, NULL, true, "", type, value);
         declaration_generate_name(var, gen->symbol_counter++);
         register_allocation(gen, var);
         return var;
