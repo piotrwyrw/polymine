@@ -54,7 +54,7 @@ int main(void)
         FILE *output = fopen("output.c", "wa");
 
         struct codegen gen;
-        codegen_init(&gen, node, sem.stuff, sem.symbol_counter, output);
+        codegen_init(&gen, node, sem.stuff, output);
         gen_generate(&gen);
 
         fclose(output);

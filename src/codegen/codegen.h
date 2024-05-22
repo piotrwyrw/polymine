@@ -11,15 +11,12 @@ struct codegen {
 
         FILE *out;
 
-        // From the semantic analysis
-        size_t symbol_counter;
-
         // Temporary stuff for code generation and keeping track of state
         size_t param_count;
         size_t param_no;
 };
 
-void codegen_init(struct codegen *, struct astnode *, struct astnode *, size_t, FILE *);
+void codegen_init(struct codegen *, struct astnode *, struct astnode *, FILE *);
 
 void gen_generate(struct codegen *);
 
@@ -33,7 +30,7 @@ void gen_include(struct codegen *, struct astnode *);
 
 void gen_type(struct codegen *, struct astdtype *);
 
-void gen_path(struct codegen *, struct astnode *);
+void gen_path(struct codegen *, struct astnode *, struct astnode *);
 
 void gen_type_definition(struct codegen *, struct astnode *);
 

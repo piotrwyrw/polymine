@@ -7,12 +7,11 @@
 
 #define _codegen struct codegen *gen
 
-void codegen_init(struct codegen *codegen, struct astnode *program, struct astnode *stuff, size_t counter, FILE *out)
+void codegen_init(struct codegen *codegen, struct astnode *program, struct astnode *stuff, FILE *out)
 {
         codegen->program = program;
         codegen->stuff = stuff;
         codegen->out = out;
-        codegen->symbol_counter = counter;
         codegen->param_count = 0;
         codegen->param_no = 0;
 }
@@ -28,10 +27,10 @@ static void *gen_includes(_codegen, struct astnode *node)
 
 static void gen_bootstrap(_codegen)
 {
-        EMIT("void pFn_polymine_bootstrap();\n"
+        EMIT("void _fn_polymine_bootstrap();\n"
              "\n"
              "int main(void) {\n"
-             "        pFn_polymine_bootstrap();\n"
+             "        _fn_polymine_bootstrap();\n"
              "        return 0;\n"
              "}\n\n");
 }
@@ -62,9 +61,6 @@ static void gen_compound(_codegen, struct astnode *compound)
 
 void gen_any(_codegen, struct astnode *node)
 {
-        if (node->ignore)
-                return;
-
         switch (node->type) {
                 case NODE_PROGRAM:
                         gen_compound(gen, node->program.block->block.nodes);
@@ -120,16 +116,6 @@ void gen_any(_codegen, struct astnode *node)
 
 void gen_resolve(_codegen, struct astnode *node)
 {
-        if (node->resolve.value->type != NODE_VOID_PLACEHOLDER) {
-                struct astnode *resolveValueVariable = temporary_variable(gen,
-                                                                          node->resolve.function->function_def.type,
-                                                                          WRAP(node->resolve.value));
-                gen_variable_declaration(gen, resolveValueVariable);
-
-                EMIT("return %s;\n", resolveValueVariable->declaration.generated_id);
-                return;
-        }
-
         EMIT("return ");
         gen_expression(gen, node->resolve.value);
         EMIT(";\n");
@@ -137,7 +123,6 @@ void gen_resolve(_codegen, struct astnode *node)
 
 void gen_if(_codegen, struct astnode *node, size_t branch_number)
 {
-
         if (branch_number == 0)
                 EMIT("if");
         else {
@@ -148,8 +133,11 @@ void gen_if(_codegen, struct astnode *node, size_t branch_number)
                         EMIT(" ");
         }
 
-        if (ifExprVar)
-                EMIT(" (%s)", ifExprVar->declaration.generated_id);
+        if (node->if_statement.expr) {
+                EMIT(" (");
+                gen_expression(gen, node->if_statement.expr);
+                EMIT(") ");
+        }
 
         EMIT("{\n");
 
@@ -218,35 +206,50 @@ void gen_type(_codegen, struct astdtype *type)
 
 static void *gen_call_param(_codegen, struct astnode *);
 
-static void gen_adjust_degree(_codegen, struct astnode *node)
+void gen_path(_codegen, struct astnode *node, struct astnode *until)
 {
-        size_t degree = find_pointer_degree(node->exprType, NULL);
-        if (degree == 0) {
-                EMIT("&(");
-                gen_expression(gen, node);
-                EMIT(")");
+        struct astnode *segment = node;
+        struct astnode *lastCallSegment = last_call_path(node, until);
+
+        // If there are no function calls in the path (OR the function
+        // is on the first place), we can just generate it as we usually would
+        if (!lastCallSegment || (lastCallSegment && lastCallSegment == segment)) {
+                while (segment && segment != until) { // Yes, we're comparing pointers here (and above), and it's fine!
+                        gen_expression(gen, segment->path.expr);
+                        segment = segment->path.next;
+                        if (segment && segment != until)
+                                EMIT(".");
+                }
                 return;
         }
 
-        while (degree > 1) {
-                EMIT("*");
-                degree--;
-        }
+        // Otherwise we need to get a little more fancy ...
+        EMIT("%s(",
+             lastCallSegment->path.expr->function_call.definition->function_def.generated->generated_function.generated_id);
 
-        EMIT("(");
-        gen_expression(gen, node);
+        struct astnode *fdef = lastCallSegment->path.expr->function_call.definition;
+
+        // First, generate the function parameters as usual
+        size_t oldCount = gen->param_count;
+        size_t oldNo = gen->param_no;
+
+        size_t actual_param_count = fdef->function_def.param_count - fdef->function_def.provided_param_count;
+
+        gen->param_count = fdef->function_def.param_count;
+        gen->param_no = 0;
+
+        for (size_t i = 0; i < actual_param_count; i++)
+                gen_call_param(gen, lastCallSegment->path.expr->function_call.values->node_compound.array[i]);
+
+        gen->param_count = oldCount;
+        gen->param_no = oldNo;
+
+        gen_path(gen, node, lastCallSegment);
         EMIT(")");
-}
 
-void gen_path(_codegen, struct astnode *node)
-{
-        struct astnode *segment = node;
-
-        while (segment) {
-                gen_expression(gen, segment->path.expr);
-                segment = segment->path.next;
-                if (segment)
-                        EMIT(".");
+        if (lastCallSegment->path.next && lastCallSegment->path.next->path.expr->type != NODE_FUNCTION_CALL) {
+                EMIT(".");
+                gen_path(gen, lastCallSegment->path.next, NULL);
         }
 }
 
@@ -315,13 +318,11 @@ static void *gen_default_initializer(_codegen, struct astnode *field)
 
 void gen_variable_declaration(_codegen, struct astnode *decl)
 {
-        struct astnode *value = UNWRAP(decl->declaration.value);
-
         gen_type(gen, decl->declaration.type);
         EMIT(" %s", decl->declaration.generated_id);
-        if (value) {
+        if (decl->declaration.value) {
                 EMIT(" = ");
-                gen_expression(gen, value);
+                gen_expression(gen, decl->declaration.value);
         } else if (decl->declaration.type->type == ASTDTYPE_COMPLEX) {
                 EMIT(" = {");
 
@@ -371,10 +372,8 @@ static void *gen_call_param(_codegen, struct astnode *expr)
         return NULL;
 }
 
-void gen_expression(_codegen, struct astnode *_expr)
+void gen_expression(_codegen, struct astnode *expr)
 {
-        struct astnode *expr = UNWRAP(_expr);
-
         struct astnode *n;
         switch (expr->type) {
                 case NODE_INTEGER_LITERAL:
@@ -425,7 +424,7 @@ void gen_expression(_codegen, struct astnode *_expr)
                 case NODE_VOID_PLACEHOLDER:
                 EMITB("/* void */");
                 case NODE_PATH:
-                        gen_path(gen, expr);
+                        gen_path(gen, expr, NULL);
                         break;
                 default:
                         break;
