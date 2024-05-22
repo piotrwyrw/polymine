@@ -121,8 +121,6 @@ _Bool analyze_if(struct semantics *sem, struct astnode *_if)
                 return false;
         }
 
-        _if->if_statement.exprType = type;
-
         skip_expression:
 
         if (!analyze_block(sem, _if->if_statement.block))
@@ -350,8 +348,6 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                 return false;
         }
 
-        ok:;
-
         struct astnode *flawed_param;
 
         _semantics = sem;
@@ -555,25 +551,35 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr,
         if (compile_time)
                 *compile_time = true;
 
+        struct astdtype *type = NULL;
+
         switch (expr->type) {
                 case NODE_BINARY_OP:
-                        return analyze_binary_expression(sem, expr, compile_time, def);
+                        type = analyze_binary_expression(sem, expr, compile_time, def);
+                        break;
                 case NODE_VARIABLE_USE:
-                        return analyze_variable_use(sem, expr, def);
+                        type = analyze_variable_use(sem, expr, def);
+                        break;
                 case NODE_INTEGER_LITERAL:
                 case NODE_FLOAT_LITERAL:
                 case NODE_STRING_LITERAL:
                 case NODE_FUNCTION_CALL:
                 case NODE_POINTER:
                 case NODE_DEREFERENCE:
-                        return analyze_atom(sem, expr, compile_time, def);
+                        type = analyze_atom(sem, expr, compile_time, def);
+                        break;
                 case NODE_VOID_PLACEHOLDER:
-                        return sem->_void;
+                        type = sem->_void;
+                        break;
                 case NODE_PATH:
-                        return analyze_path_as_expression(sem, expr);
+                        type = analyze_path_as_expression(sem, expr);
+                        break;
                 default:
                         return NULL;
         }
+
+        expr->exprType = type;
+        return type;
 }
 
 struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode *bin, _Bool *compile_time, struct astnode *def)
@@ -637,6 +643,11 @@ static struct astnode *dereference_all(struct astnode *expr, struct astdtype **t
         *type = outType;
 
         return deref;
+}
+
+static void rewire_path(struct semantics *sem, struct astnode *path, struct astnode *temps)
+{
+
 }
 
 struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
@@ -735,6 +746,8 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
 
                 pathSegment = pathSegment->path.next;
         }
+
+        rewire_path(sem, path, NULL);
 
         return lastExpr;
 }

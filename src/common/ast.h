@@ -89,6 +89,8 @@ struct astnode {
         _Bool ignore;
         struct astnode *super; // The enclosing block
         struct astnode *holder; // The holder node. NULL most of the time.
+        struct astdtype *exprType; // If this node is an expression node, this is its type
+        struct astnode *pre; // A compound of things that need to be generated before a given node
         union {
                 struct {
                         struct astnode *block;
@@ -192,7 +194,6 @@ struct astnode {
 
                 struct {
                         struct astnode *expr;
-                        struct astdtype *exprType;
                         struct astnode *block;
                         struct astnode *next_branch;
                 } if_statement;
@@ -300,6 +301,10 @@ char *astdtype_string(struct astdtype *);
 
 /* Free a node recursively */
 void astnode_free(struct astnode *);
+
+void astnode_init_pre(struct astnode *);
+
+void astnode_pre(struct astnode *, struct astnode *);
 
 struct astnode *astnode_generic(enum nodetype, size_t, struct astnode *);
 

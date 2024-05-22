@@ -207,6 +207,34 @@ struct astnode *last_call_path(struct astnode *path, struct astnode *until)
         return call;
 }
 
+struct astnode *last_path_segment(struct astnode *path)
+{
+        struct astnode *tip = path;
+
+        while (tip) {
+                if (tip->path.next)
+                        tip = tip->path.next;
+                else
+                        break;
+        }
+
+        return tip;
+}
+
+struct astnode *segment_before(struct astnode *path, struct astnode *before)
+{
+        struct astnode *tip = path;
+
+        while (tip) {
+                if (tip->path.next != before)
+                        tip = tip->path.next;
+                else
+                        break;
+        }
+
+        return tip;
+}
+
 /**
  * @param pointer - The types must be an EXACT match
  */
@@ -338,7 +366,8 @@ size_t find_pointer_degree(struct astdtype *type, struct astdtype **outType)
                 tip = tip->pointer.to;
         }
 
-        *outType = tip;
+        if (outType)
+                *outType = tip;
 
         return deg;
 }
@@ -370,7 +399,8 @@ struct astnode *symbol_conflict(char *id, struct astnode *node)
         struct astnode *symbol;
 
         // Node: Functions may not be shadowed to avoid confusion
-        if ((symbol = find_symbol(id, node->super)) && (symbol->super == node->super || symbol->symbol.type != SYMBOL_VARIABLE)) {
+        if ((symbol = find_symbol(id, node->super)) &&
+            (symbol->super == node->super || symbol->symbol.type != SYMBOL_VARIABLE)) {
                 printf("The symbol '%s' is already defined - Redefinition attempted on line %ld. Previous definition on line %ld as a %s.\n",
                        id, node->line, symbol->line,
                        symbol_type_humanstr(symbol->symbol.symtype));

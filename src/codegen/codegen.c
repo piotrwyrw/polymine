@@ -137,12 +137,6 @@ void gen_resolve(_codegen, struct astnode *node)
 
 void gen_if(_codegen, struct astnode *node, size_t branch_number)
 {
-        struct astnode *ifExprVar = NULL;
-
-        if (node->if_statement.expr) {
-                ifExprVar = temporary_variable(gen, node->if_statement.exprType, WRAP(node->if_statement.expr));
-                gen_variable_declaration(gen, ifExprVar);
-        }
 
         if (branch_number == 0)
                 EMIT("if");
@@ -224,51 +218,35 @@ void gen_type(_codegen, struct astdtype *type)
 
 static void *gen_call_param(_codegen, struct astnode *);
 
-// TODO
-void gen_path(_codegen, struct astnode *node, struct astnode *until)
+static void gen_adjust_degree(_codegen, struct astnode *node)
 {
-        struct astnode *segment = node;
-        struct astnode *lastCallSegment = last_call_path(node, until);
-
-        // If there are no function calls in the path (OR the function
-        // is on the first place), we can just generate it as we usually would
-        if (!lastCallSegment || (lastCallSegment && lastCallSegment == segment)) {
-                while (segment && segment != until) { // Yes, we're comparing pointers here (and above), and it's fine!
-                        gen_expression(gen, segment->path.expr);
-                        segment = segment->path.next;
-                        if (segment && segment != until)
-                                EMIT(".");
-                }
+        size_t degree = find_pointer_degree(node->exprType, NULL);
+        if (degree == 0) {
+                EMIT("&(");
+                gen_expression(gen, node);
+                EMIT(")");
                 return;
         }
 
-        // Otherwise we need to get a little more fancy ...
-        EMIT("%s(",
-             lastCallSegment->path.expr->function_call.definition->function_def.generated->generated_function.generated_id);
+        while (degree > 1) {
+                EMIT("*");
+                degree--;
+        }
 
-        struct astnode *fdef = lastCallSegment->path.expr->function_call.definition;
-
-        // First, generate the function parameters as usual
-        size_t oldCount = gen->param_count;
-        size_t oldNo = gen->param_no;
-
-        size_t actual_param_count = fdef->function_def.param_count - fdef->function_def.provided_param_count;
-
-        gen->param_count = fdef->function_def.param_count;
-        gen->param_no = 0;
-
-        for (size_t i = 0; i < actual_param_count; i++)
-                gen_call_param(gen, lastCallSegment->path.expr->function_call.values->node_compound.array[i]);
-
-        gen->param_count = oldCount;
-        gen->param_no = oldNo;
-
-        gen_path(gen, node, lastCallSegment);
+        EMIT("(");
+        gen_expression(gen, node);
         EMIT(")");
+}
 
-        if (lastCallSegment->path.next && lastCallSegment->path.next->path.expr->type != NODE_FUNCTION_CALL) {
-                EMIT(".");
-                gen_path(gen, lastCallSegment->path.next, NULL);
+void gen_path(_codegen, struct astnode *node)
+{
+        struct astnode *segment = node;
+
+        while (segment) {
+                gen_expression(gen, segment->path.expr);
+                segment = segment->path.next;
+                if (segment)
+                        EMIT(".");
         }
 }
 
@@ -447,24 +425,11 @@ void gen_expression(_codegen, struct astnode *_expr)
                 case NODE_VOID_PLACEHOLDER:
                 EMITB("/* void */");
                 case NODE_PATH:
-                        gen_path(gen, expr, NULL);
+                        gen_path(gen, expr);
                         break;
                 default:
                         break;
         }
-}
-
-struct astnode *temporary_variable(_codegen, struct astdtype *type, struct astnode *value)
-{
-        struct astnode *var = astnode_declaration(0, NULL, true, "", type, value);
-        declaration_generate_name(var, gen->symbol_counter++);
-        register_allocation(gen, var);
-        return var;
-}
-
-void register_allocation(_codegen, struct astnode *node)
-{
-        astnode_push_compound(gen->stuff, node);
 }
 
 #undef EMITB

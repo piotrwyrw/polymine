@@ -398,13 +398,30 @@ void astnode_free(struct astnode *node)
                         break;
         }
 
+        if (node->pre)
+                astnode_free_compound(node->pre);
+
         free(node);
+}
+
+void astnode_init_pre(struct astnode *node)
+{
+        node->pre = astnode_empty_compound(node->line, node->super);
+}
+
+void astnode_pre(struct astnode *pre, struct astnode *node)
+{
+        if (!pre->pre)
+                astnode_init_pre(pre);
+
+        astnode_push_compound(pre->pre, node);
 }
 
 struct astnode *astnode_generic(enum nodetype type, size_t line, struct astnode *block)
 {
         struct astnode *node = malloc(sizeof(struct astnode));
         node->ignore = false;
+        node->pre = NULL;
         node->type = type;
         node->line = line;
         node->super = block;

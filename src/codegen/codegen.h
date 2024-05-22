@@ -33,7 +33,7 @@ void gen_include(struct codegen *, struct astnode *);
 
 void gen_type(struct codegen *, struct astdtype *);
 
-void gen_path(struct codegen *, struct astnode *, struct astnode *);
+void gen_path(struct codegen *, struct astnode *);
 
 void gen_type_definition(struct codegen *, struct astnode *);
 
@@ -44,9 +44,5 @@ void gen_variable_declaration(struct codegen *, struct astnode *);
 void gen_assignment(struct codegen *, struct astnode *);
 
 void gen_expression(struct codegen *, struct astnode *);
-
-struct astnode *temporary_variable(struct codegen *, struct astdtype *, struct astnode *);
-
-void register_allocation(struct codegen *, struct astnode *);
 
 #endif
