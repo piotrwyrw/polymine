@@ -27,10 +27,10 @@ static void *gen_includes(_codegen, struct astnode *node)
 
 static void gen_bootstrap(_codegen)
 {
-        EMIT("void _fn_polymine_bootstrap();\n"
+        EMIT("void pFn_polymine_bootstrap();\n"
              "\n"
              "int main(void) {\n"
-             "        _fn_polymine_bootstrap();\n"
+             "        pFn_polymine_bootstrap();\n"
              "        return 0;\n"
              "}\n\n");
 }
@@ -61,6 +61,10 @@ static void gen_compound(_codegen, struct astnode *compound)
 
 void gen_any(_codegen, struct astnode *node)
 {
+        // Generate prerequisites first
+        if (node->pre)
+                gen_compound(gen, node->pre);
+
         switch (node->type) {
                 case NODE_PROGRAM:
                         gen_compound(gen, node->program.block->block.nodes);

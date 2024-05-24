@@ -6,7 +6,8 @@
 
 _Bool analyze_program(struct semantics *sem, struct astnode *program)
 {
-        if (!analyze_any(sem, program->program.block))
+        // Temps is NULL here, since a block should not return any temporary variables
+        if (!analyze_any(sem, program->program.block, NULL, NULL))
                 return false;
 
         struct astnode *sym;
@@ -42,9 +43,27 @@ _Bool analyze_compound(struct semantics *sem, struct astnode *compound)
 {
         _Bool success = true;
 
-        for (size_t i = 0; i < compound->node_compound.count; i++)
-                if (!analyze_any(sem, compound->node_compound.array[i]))
+        // When a node requires temporary variables, these would usually be passed along to the holder (e.g. a function
+        // call) - Here, however, these nodes are standalone, so we'll just wire the temporary variables directly to the node
+        // and have them be generated this way.
+        for (size_t i = 0; i < compound->node_compound.count; i++) {
+                struct astnode *node = compound->node_compound.array[i];
+                struct astnode *temps = astnode_empty_compound(node->line, node->super);
+
+                struct astnode **pathConsumer = NULL;
+
+                if (node->type == NODE_PATH)
+                        pathConsumer = &compound->node_compound.array[i];
+
+                if (!analyze_any(sem, node, temps, pathConsumer))
                         success = false;
+
+                // ... and we'll just free the temps compound if the expression didn't return any temps
+                if (temps->node_compound.count == 0)
+                        astnode_free_compound(temps);
+                else
+                        compound->node_compound.array[i]->pre = temps; // We need to reference the consumer here!
+        }
 
         return success;
 }
@@ -59,21 +78,23 @@ _Bool analyze_block(struct semantics *sem, struct astnode *block)
         return analyze_compound(sem, block->block.nodes);
 }
 
-_Bool analyze_any(struct semantics *sem, struct astnode *node)
+_Bool analyze_any(struct semantics *sem, struct astnode *node, struct astnode *temps, struct astnode **pathConsumer)
 {
         if (node->type != NODE_INCLUDE &&
             !(node->type == NODE_BLOCK && node->holder && node->holder->type == NODE_PROGRAM))
                 sem->pristine = false;
 
+#define TEST(c) if (!(c)) return false; else break
+
         switch (node->type) {
                 case NODE_BLOCK:
-                        return analyze_block(sem, node);
+                        TEST(analyze_block(sem, node));
                 case NODE_IF:
-                        return analyze_if(sem, node);
+                        TEST(analyze_if(sem, node, NULL));
                 case NODE_VARIABLE_DECL:
-                        return analyze_variable_declaration(sem, node);
+                        TEST(analyze_variable_declaration(sem, node));
                 case NODE_FUNCTION_DEFINITION:
-                        return analyze_function_definition(sem, node);
+                        TEST(analyze_function_definition(sem, node));
                 case NODE_BINARY_OP:
                 case NODE_INTEGER_LITERAL:
                 case NODE_STRING_LITERAL:
@@ -82,33 +103,46 @@ _Bool analyze_any(struct semantics *sem, struct astnode *node)
                 case NODE_FUNCTION_CALL:
                 case NODE_POINTER:
                 case NODE_DEREFERENCE:
-                        return analyze_expression(sem, node, NULL, NULL) != NULL;
+                        TEST(analyze_expression(sem, node, NULL, NULL, temps, NULL) != NULL);
                 case NODE_VARIABLE_ASSIGNMENT:
-                        return analyze_assignment(sem, node);
+                        TEST(analyze_assignment(sem, node));
                 case NODE_RESOLVE:
-                        return analyze_resolve(sem, node);
+                        TEST(analyze_resolve(sem, node));
                 case NODE_INCLUDE:
-                        return analyze_include(sem, node);
+                        TEST(analyze_include(sem, node));
                 case NODE_NOTHING:
-                        return true;
+                        break;
                 case NODE_PRESENT_FUNCTION:
-                        return analyze_present_function(sem, node);
+                        TEST(analyze_present_function(sem, node));
                 case NODE_COMPLEX_TYPE:
-                        return analyze_complex_type(sem, node);
+                        TEST(analyze_complex_type(sem, node));
                 case NODE_PATH:
-                        return analyze_path(sem, node) != NULL;
+                        TEST(analyze_path(sem, node, temps, pathConsumer) != NULL);
                 default:
                         printf("Unknown node type passed to analyze_any(..): %s\n", nodetype_string(node->type));
                         return false;
         }
+
+#undef TEST
+
+        return true;
 }
 
-_Bool analyze_if(struct semantics *sem, struct astnode *_if)
+_Bool analyze_if(struct semantics *sem, struct astnode *_if, struct astnode *temps)
 {
         if (!_if->if_statement.expr)
                 goto skip_expression;
 
-        struct astdtype *type = analyze_expression(sem, _if->if_statement.expr, NULL, NULL);
+        _Bool externalTemps = temps != NULL;
+
+        if (!externalTemps)
+                temps = astnode_empty_compound(_if->line, _if->super);
+
+        struct astdtype *type = analyze_expression(sem, _if->if_statement.expr, NULL, NULL, temps,
+                                                   &_if->if_statement.expr);
+
+        if (!externalTemps)
+                _if->pre = temps;
 
         if (!type) {
                 printf("Type evaluation failed for if condition on line %ld.\n", _if->line);
@@ -127,7 +161,7 @@ _Bool analyze_if(struct semantics *sem, struct astnode *_if)
                 return false;
 
         if (_if->if_statement.next_branch)
-                return analyze_if(sem, _if->if_statement.next_branch);
+                return analyze_if(sem, _if->if_statement.next_branch, temps);
 
         return true;
 }
@@ -181,7 +215,10 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
 
         _Bool compile_time;
 
-        struct astdtype *exprType = analyze_expression(sem, UNWRAP(decl->declaration.value), &compile_time, NULL);
+        struct astnode *temps = astnode_empty_compound(decl->line, decl->super);
+        struct astdtype *exprType = analyze_expression(sem, UNWRAP(decl->declaration.value), &compile_time, NULL,
+                                                       temps, &decl->declaration.value);
+        decl->pre = temps;
 
         if (!exprType) {
                 printf("Type evaluation failed for variable \"%s\" on line %ld.\n", decl->declaration.identifier,
@@ -233,7 +270,16 @@ _Bool analyze_variable_declaration(struct semantics *sem, struct astnode *decl)
 
 _Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
 {
-        struct astnode *target = analyze_path(sem, assignment->assignment.path);
+        struct astnode *temps = astnode_empty_compound(assignment->line, assignment->super);
+
+        if (last_call_path(assignment->assignment.path, NULL)) {
+                printf("Assignments are only supported on paths with no function calls. Error on line %ld.\n",
+                       assignment->line);
+        }
+
+        struct astnode *target = analyze_path(sem, assignment->assignment.path, temps, &assignment->assignment.path);
+
+        assignment->pre = temps;
 
         if (!target) {
                 printf("Assignment path is invalid. Error on line %ld.\n", assignment->line);
@@ -250,7 +296,8 @@ _Bool analyze_assignment(struct semantics *sem, struct astnode *assignment)
 
         assignment->assignment.declaration = target;
 
-        struct astdtype *exprType = analyze_expression(sem, assignment->assignment.value, NULL, NULL);
+        struct astdtype *exprType = analyze_expression(sem, assignment->assignment.value, NULL, NULL, assignment->pre,
+                                                       &assignment->assignment.path);
 
         if (!exprType) {
                 printf("Type validation of assignment expression failed on line %ld.\n", assignment->line);
@@ -368,7 +415,8 @@ _Bool analyze_function_definition(struct semantics *sem, struct astnode *fdef)
                                         fdef->function_def.type,
                                         fdef));
 
-        if (!analyze_any(sem, fdef->function_def.block))
+        // Again, blocks should not return temps, nor are they consumers of paths
+        if (!analyze_any(sem, fdef->function_def.block, NULL, NULL))
                 return false;
 
 
@@ -403,7 +451,8 @@ void *analyze_complex_type_field(struct semantics *sem, struct astnode *field)
 
         if (field->declaration.value) {
                 _Bool compileTime;
-                struct astdtype *exprType = analyze_expression(sem, field->declaration.value, &compileTime, NULL);
+                struct astdtype *exprType = analyze_expression(sem, field->declaration.value, &compileTime, NULL, NULL,
+                                                               NULL);
 
                 if (!exprType) {
                         printf("Type analysis failed for default expression of field \"%s\" on line %ld.\n",
@@ -491,7 +540,10 @@ _Bool analyze_complex_type(struct semantics *sem, struct astnode *def)
 
 _Bool analyze_resolve(struct semantics *sem, struct astnode *res)
 {
-        struct astdtype *type = analyze_expression(sem, res->resolve.value, NULL, NULL);
+        struct astnode *temps = astnode_empty_compound(res->line, res->super);
+        struct astdtype *type = analyze_expression(sem, res->resolve.value, NULL, NULL, temps, &res->resolve.value);
+        res->pre = temps;
+
         struct astnode *function;
 
         if (!type)
@@ -543,9 +595,9 @@ _Bool analyze_include(struct semantics *sem, struct astnode *include)
         return true;
 }
 
-static struct astdtype *analyze_path_as_expression(struct semantics *, struct astnode *);
+static struct astdtype *analyze_path_as_expression(struct semantics *, struct astnode *, struct astnode *, struct astnode **);
 
-struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr, _Bool *compile_time, struct astnode *def)
+struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr, _Bool *compile_time, struct astnode *def, struct astnode *temps, struct astnode **pathConsumer)
 {
         // The default state is true. This might change during the recursive call chain
         if (compile_time)
@@ -555,7 +607,7 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr,
 
         switch (expr->type) {
                 case NODE_BINARY_OP:
-                        type = analyze_binary_expression(sem, expr, compile_time, def);
+                        type = analyze_binary_expression(sem, expr, compile_time, def, temps);
                         break;
                 case NODE_VARIABLE_USE:
                         type = analyze_variable_use(sem, expr, def);
@@ -566,13 +618,13 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr,
                 case NODE_FUNCTION_CALL:
                 case NODE_POINTER:
                 case NODE_DEREFERENCE:
-                        type = analyze_atom(sem, expr, compile_time, def);
+                        type = analyze_atom(sem, expr, compile_time, def, temps);
                         break;
                 case NODE_VOID_PLACEHOLDER:
                         type = sem->_void;
                         break;
                 case NODE_PATH:
-                        type = analyze_path_as_expression(sem, expr);
+                        type = analyze_path_as_expression(sem, expr, temps, pathConsumer);
                         break;
                 default:
                         return NULL;
@@ -582,10 +634,11 @@ struct astdtype *analyze_expression(struct semantics *sem, struct astnode *expr,
         return type;
 }
 
-struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode *bin, _Bool *compile_time, struct astnode *def)
+struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode *bin, _Bool *compile_time, struct astnode *def, struct astnode *temps)
 {
-        struct astdtype *right = analyze_expression(sem, bin->binary.left, compile_time, def);
-        struct astdtype *left = analyze_expression(sem, bin->binary.right, compile_time, def);
+        struct astdtype *right = analyze_expression(sem, bin->binary.left, compile_time, def, temps, &bin->binary.left);
+        struct astdtype *left = analyze_expression(sem, bin->binary.right, compile_time, def, temps,
+                                                   &bin->binary.right);
 
         if (!left || !right)
                 return NULL;
@@ -612,9 +665,9 @@ struct astdtype *analyze_binary_expression(struct semantics *sem, struct astnode
         return type;
 }
 
-static struct astdtype *analyze_path_as_expression(struct semantics *sem, struct astnode *path)
+static struct astdtype *analyze_path_as_expression(struct semantics *sem, struct astnode *path, struct astnode *temps, struct astnode **consumer)
 {
-        struct astnode *res = analyze_path(sem, path);
+        struct astnode *res = analyze_path(sem, path, temps, consumer);
 
         if (!res)
                 return NULL;
@@ -645,17 +698,77 @@ static struct astnode *dereference_all(struct astnode *expr, struct astdtype **t
         return deref;
 }
 
-static void rewire_path(struct semantics *sem, struct astnode *path, struct astnode *temps)
+// This should rewire the path expression according to the experimental algorithm
+static void rewire_path(struct semantics *sem, struct astnode *path, struct astnode *temps, struct astnode **consumer)
 {
+        if (!consumer)
+                return; // If there's no consumer then there's no point in rewiring either.
 
-}
-
-struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
-{
-        if (path->line == 21) {
-                printf("");
+        if (path->holder && path->holder->type == NODE_VARIABLE_ASSIGNMENT) {
+                return; // An assignment path does not require rewiring
         }
 
+        struct astnode *root = path;
+        struct astnode *tip = root;
+
+        struct astnode *last = NULL;
+        struct astnode *delim = NULL;
+        struct astnode *nextRoot = NULL;
+
+        enum {
+                MODE_PARTITION,
+                MODE_REWIRE
+        } mode = MODE_PARTITION;
+
+        while (tip) {
+                if (mode == MODE_PARTITION) {
+                        if (tip->path.next && tip->path.next->path.expr->type == NODE_FUNCTION_CALL) {
+                                if (tip->path.next)
+                                        nextRoot = tip->path.next;
+                                delim = tip;
+                                tip = root;
+                                mode = MODE_REWIRE;
+                                continue;
+                        }
+
+                        if (tip->path.expr->type == NODE_FUNCTION_CALL) {
+                                nextRoot = tip->path.next;
+
+                                // Disconnect the current segment from the following one to achieve proper partitioning
+                                tip->path.next = NULL;
+                                delim = tip;
+                                tip = root;
+                                mode = MODE_REWIRE;
+                                continue;
+                        }
+
+                        if (tip->path.next) {
+                                last = tip;
+                                tip = tip->path.next;
+                                delim = tip;
+                        } else {
+                                nextRoot = NULL;
+                                mode = MODE_REWIRE;
+                        }
+
+                        continue;
+                }
+
+                struct astnode *var = temporary_variable(sem, delim->path.expr->exprType, true);
+                var->declaration.value = root;
+                astnode_push_compound(temps, var);
+
+                *consumer = astnode_variable(path->line, path->super, "");
+                (*consumer)->variable.var = var;
+
+                tip = nextRoot;
+                root = nextRoot;
+                mode = MODE_PARTITION;
+        }
+}
+
+struct astnode *analyze_path(struct semantics *sem, struct astnode *path, struct astnode *temps, struct astnode **consumer)
+{
         struct astnode *pathSegment = path;
         struct astdtype *lastType;
         struct astnode *lastExpr = NULL;
@@ -668,7 +781,7 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
                 // We analyze the first expression as usual
                 if (first) {
                         lastExpr = expr;
-                        lastType = analyze_expression(sem, expr, NULL, NULL);
+                        lastType = analyze_expression(sem, expr, NULL, NULL, temps, consumer);
                         if (!lastType) {
                                 printf("Semantic analysis failed for path on line %ld.\n", path->line);
                                 return NULL;
@@ -729,7 +842,7 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
 
                 lastExpr = expr;
 
-                lastType = analyze_expression(sem, expr, NULL, def);
+                lastType = analyze_expression(sem, expr, NULL, def, temps, consumer);
 
                 if (!lastType) {
                         printf("Failed to analyze path on line %ld.\n", path->line);
@@ -747,7 +860,7 @@ struct astnode *analyze_path(struct semantics *sem, struct astnode *path)
                 pathSegment = pathSegment->path.next;
         }
 
-        rewire_path(sem, path, NULL);
+        rewire_path(sem, path, temps, consumer);
 
         return lastExpr;
 }
@@ -786,7 +899,7 @@ struct astdtype *analyze_variable_use(struct semantics *sem, struct astnode *use
         return type;
 }
 
-struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool *compile_time, struct astnode *def)
+struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool *compile_time, struct astnode *def, struct astnode *temps)
 {
         if (atom->type == NODE_INTEGER_LITERAL) {
                 struct astdtype *type = required_type_integer(sem, atom->integer_literal.integerValue);
@@ -814,14 +927,14 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                 if (compile_time)
                         *compile_time = false;
 
-                return analyze_function_call(sem, atom, def);
+                return analyze_function_call(sem, atom, def, temps);
         }
 
         if (atom->type == NODE_POINTER) {
                 struct astnode *target;
 
                 if (atom->pointer.target->type == NODE_PATH) {
-                        target = analyze_path(sem, atom->pointer.target);
+                        target = analyze_path(sem, atom->pointer.target, temps, &atom->pointer.target);
                         if (!target) {
                                 printf("Invalid path on line %ld.\n", atom->line);
                                 return NULL;
@@ -833,7 +946,7 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                         return NULL;
                 }
 
-                struct astdtype *exprType = analyze_expression(sem, target, compile_time, target->variable.var);
+                struct astdtype *exprType = target->exprType;
 
                 if (!exprType) {
                         printf("Could not create pointer on line %ld: Type checking failed.\n", atom->line);
@@ -854,7 +967,7 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                 struct astnode *target;
 
                 if (atom->dereference.target->type == NODE_PATH) {
-                        target = analyze_path(sem, atom->pointer.target);
+                        target = analyze_path(sem, atom->pointer.target, temps, &atom->dereference.target);
                         if (!target) {
                                 printf("Invalid path on line %ld.\n", atom->line);
                                 return NULL;
@@ -868,7 +981,7 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
                         return NULL;
                 }
 
-                struct astdtype *exprType = analyze_expression(sem, target, compile_time, target->variable.var);
+                struct astdtype *exprType = target->exprType;
 
                 if (!exprType) {
                         printf("Could not dereference on line %ld: Type checking failed.\n", atom->line);
@@ -888,7 +1001,7 @@ struct astdtype *analyze_atom(struct semantics *sem, struct astnode *atom, _Bool
         return NULL;
 }
 
-struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *call, struct astnode *def)
+struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *call, struct astnode *def, struct astnode *temps)
 {
         struct astnode *symbol;
         struct astnode *definition;
@@ -937,7 +1050,8 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
         for (size_t i = 0; i < provided_params; i++) {
                 struct astnode *callValue = call->function_call.values->node_compound.array[i];
 
-                struct astdtype *valueType = analyze_expression(sem, callValue, NULL, NULL);
+                struct astdtype *valueType = analyze_expression(sem, callValue, NULL, NULL, temps,
+                                                                &call->function_call.values->node_compound.array[i]);
                 if (!valueType)
                         return NULL;
 
@@ -971,3 +1085,12 @@ struct astdtype *analyze_function_call(struct semantics *sem, struct astnode *ca
 }
 
 #undef FUNCTION_ID
+
+struct astnode *temporary_variable(struct semantics *sem, struct astdtype *type, _Bool registered)
+{
+        struct astnode *var = astnode_declaration(0, NULL, true, "", type, NULL);
+        declaration_generate_name(var, sem->symbol_counter);
+        if (!registered)
+                astnode_push_compound(sem->stuff, var);
+        return var;
+}

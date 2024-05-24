@@ -58,7 +58,6 @@ void ast_print(struct astnode *_node, size_t level)
         memset(indent, '\t', level);
         indent[level] = '\0';
 
-
 #define INDENTED(...) \
         printf("?\t%s", indent); \
         printf(__VA_ARGS__)
@@ -76,6 +75,11 @@ void ast_print(struct astnode *_node, size_t level)
         printf(__VA_ARGS__)
 
         char *s;
+
+        if (node->pre && node->pre->node_compound.count > 0) {
+                INDENTED("Prerequisites:\n");
+                ast_print(node->pre, level + 1);
+        }
 
         switch (node->type) {
                 case NODE_UNDEFINED:

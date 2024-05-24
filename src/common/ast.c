@@ -394,6 +394,7 @@ void astnode_free(struct astnode *node)
                         astnode_free(node->path.expr);
                         if (node->path.next)
                                 astnode_free(node->path.next);
+                        break;
                 default:
                         break;
         }

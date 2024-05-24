@@ -91,7 +91,9 @@ static struct astnode *parser_parse_whatever(struct parser *p, enum pstatus *sta
                         return NULL;
                 }
 
-                return astnode_assignment(expr->line, p->block, expr, value);
+                struct astnode *assignment = astnode_assignment(expr->line, p->block, expr, value);
+                expr->holder = assignment;
+                return assignment;
         }
 
         return expr;
